@@ -1,0 +1,21 @@
+# virtual environment
+**/venv/
+env/
+
+# python cache
+**/__pycache__/
+**/*.pyc
+
+# environment variables
+**/.env
+
+# vscode
+.vscode/
+
+# build files
+dist/
+build/
+
+# database files
+*.db
+backend/expenses_v2.db
