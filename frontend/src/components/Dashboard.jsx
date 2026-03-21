@@ -1,5 +1,5 @@
 import React from 'react';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
 
@@ -60,32 +60,36 @@ const Dashboard = ({ expenses, folders }) => {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))', gap: '1.5rem' }}>
                 <div className="glass-panel" style={{ padding: '1.5rem' }}>
                     <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1.5rem' }}>Monthly Overview</h3>
-                    <div style={{ height: 260 }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={barData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--glass-border)" />
-                                <XAxis dataKey="name" stroke="var(--text-secondary)" fontSize={12} tickLine={false} axisLine={false} />
-                                <Tooltip contentStyle={{ background: 'var(--panel-bg)', borderColor: 'var(--glass-border)', color: 'var(--text-primary)', borderRadius: '8px' }} />
-                                <Bar dataKey="Income" fill="var(--success-color)" radius={[4, 4, 0, 0]} maxBarSize={32} />
-                                <Bar dataKey="Expense" fill="var(--danger-color)" radius={[4, 4, 0, 0]} maxBarSize={32} />
-                            </BarChart>
-                        </ResponsiveContainer>
+                    <div style={{ position: 'relative', width: '100%', paddingBottom: '260px' }}>
+                        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={barData}>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--glass-border)" />
+                                    <XAxis dataKey="name" stroke="var(--text-secondary)" fontSize={12} tickLine={false} axisLine={false} />
+                                    <Tooltip contentStyle={{ background: 'var(--panel-bg)', borderColor: 'var(--glass-border)', color: 'var(--text-primary)', borderRadius: '8px' }} />
+                                    <Bar dataKey="Income" fill="var(--success-color)" radius={[4, 4, 0, 0]} maxBarSize={32} />
+                                    <Bar dataKey="Expense" fill="var(--danger-color)" radius={[4, 4, 0, 0]} maxBarSize={32} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </div>
                     </div>
                 </div>
 
                 <div className="glass-panel" style={{ padding: '1.5rem' }}>
                     <h3 style={{ fontSize: '1rem', fontWeight: 600, marginBottom: '1.5rem' }}>Top Expenses by Category</h3>
-                    <div style={{ height: 260 }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={5} dataKey="value">
-                                    {pieData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip contentStyle={{ background: 'var(--panel-bg)', borderColor: 'var(--glass-border)', color: 'var(--text-primary)', borderRadius: '8px' }} />
-                            </PieChart>
-                        </ResponsiveContainer>
+                    <div style={{ position: 'relative', width: '100%', paddingBottom: '260px' }}>
+                        <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}>
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={85} paddingAngle={5} dataKey="value">
+                                        {pieData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip contentStyle={{ background: 'var(--panel-bg)', borderColor: 'var(--glass-border)', color: 'var(--text-primary)', borderRadius: '8px' }} />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        </div>
                     </div>
                 </div>
             </div>

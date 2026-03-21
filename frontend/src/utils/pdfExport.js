@@ -1,5 +1,6 @@
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
+import { formatDate } from './dateFormatter';
 
 /**
  * Generates a standard PDF Table Export for expenses.
@@ -17,7 +18,7 @@ export const exportTransactionsToPDF = (expenses, folder = null) => {
 
     doc.setFontSize(11);
     doc.setTextColor(100);
-    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
+    doc.text(`Generated on: ${formatDate(new Date())}`, 14, 30);
 
     if (folder) {
         doc.text(`Total Income: Rs.${folder.totalIncome.toFixed(2)}`, 14, 38);
@@ -28,7 +29,7 @@ export const exportTransactionsToPDF = (expenses, folder = null) => {
     // Construct Table Data
     const tableColumn = ["Date", "Type", "Category", "Description", "Amount (Rs.)"];
     const tableRows = expenses.map(e => [
-        new Date(e.date).toLocaleDateString(),
+        formatDate(e.date),
         e.type.charAt(0).toUpperCase() + e.type.slice(1),
         e.category,
         e.description || '-',
@@ -36,7 +37,7 @@ export const exportTransactionsToPDF = (expenses, folder = null) => {
     ]);
 
     // Generate AutoTable
-    doc.autoTable({
+    autoTable(doc, {
         startY: folder ? 58 : 38,
         head: [tableColumn],
         body: tableRows,

@@ -13,8 +13,7 @@ const RecordDialog = ({ isOpen, onClose, onSuccess, initialData = null }) => {
     const [description, setDescription] = useState('');
     const [folderId, setFolderId] = useState('');
 
-    const isEditing = !!initialData;
-
+    const isEditing = !!(initialData && initialData.id);
     useEffect(() => {
         // Fetch Folders for the dropdown
         fetch('http://localhost:8000/api/folders/')
@@ -83,7 +82,17 @@ const RecordDialog = ({ isOpen, onClose, onSuccess, initialData = null }) => {
                 onClose();
             } else {
                 const data = await response.json();
-                setError(data.detail || `Failed to ${isEditing ? 'update' : 'add'} record`);
+                let errMsg = `Failed to ${isEditing ? 'update' : 'add'} record`;
+                if (data.detail) {
+                    if (Array.isArray(data.detail)) {
+                        errMsg = data.detail.map(d => d.msg).join(', ');
+                    } else if (typeof data.detail === 'string') {
+                        errMsg = data.detail;
+                    } else {
+                        errMsg = JSON.stringify(data.detail);
+                    }
+                }
+                setError(errMsg);
             }
         } catch (err) {
             setError('Network error: Could not reach server.');

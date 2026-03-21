@@ -1,5 +1,6 @@
 import React from 'react';
 import { Pencil, Trash2, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { formatDate } from '../utils/dateFormatter';
 
 const ExpenseList = ({ expenses, onEdit, onDelete, readOnly = false }) => {
     if (!expenses || expenses.length === 0) {
@@ -48,7 +49,7 @@ const ExpenseList = ({ expenses, onEdit, onDelete, readOnly = false }) => {
                                         {expense.type.charAt(0).toUpperCase() + expense.type.slice(1)}
                                     </span>
                                 </td>
-                                <td style={{ color: 'var(--text-secondary)' }}>{new Date(expense.date).toLocaleDateString()}</td>
+                                <td style={{ color: 'var(--text-secondary)' }}>{formatDate(expense.date)}</td>
                                 <td>
                                     <span className={expense.type === 'income' ? 'badge badge-success' : 'badge badge-neutral'}>
                                         {expense.category}

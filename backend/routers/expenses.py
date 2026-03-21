@@ -103,18 +103,45 @@ async def upload_expenses(file: UploadFile = File(...), db: Session = Depends(ge
         
         # Expected columns: Date, Amount, Category, Description
         # Optional column: Type
-        required_cols = {'Date', 'Amount', 'Category', 'Description'}
+        # Expected columns: Date, Amount, Category
+        required_cols = {'Date', 'Amount', 'Category'}
         if not required_cols.issubset(df.columns):
-            raise HTTPException(status_code=400, detail=f"Missing required columns. Found: {list(df.columns)}. Expected: {list(required_cols)}")
+            raise HTTPException(status_code=400, detail=f"Missing required columns. Found: {list(df.columns)}. Expected minimum: {list(required_cols)}")
         
         # Handle Date parsing and drop completely empty rows
         df = df.dropna(how='all')
         
-        # Parse DD/MM/YYYY dates correctly
-        df['Date'] = pd.to_datetime(df['Date'], dayfirst=True, errors='coerce').dt.date
+        from dateutil import parser
+        def robust_parse_date(val):
+            if pd.isna(val): return None
+            if hasattr(val, 'date'): return val.date()
+            if isinstance(val, date): return val
+            s = str(val).strip()
+            try:
+                return parser.parse(s, dayfirst=True).date()
+            except Exception:
+                pass
+            try:
+                return pd.to_datetime(s, dayfirst=True).date()
+            except Exception:
+                return None
+
+        df['Date'] = df['Date'].apply(robust_parse_date)
         
         has_type_col = 'Type' in df.columns
-        has_folder_col = 'Folder_Id' in df.columns
+        
+        folder_name = file.filename.rsplit('.', 1)[0]
+        db_folder = db.query(models.Folder).filter(models.Folder.name == folder_name).first()
+        if not db_folder:
+            db_folder = models.Folder(name=folder_name)
+            db.add(db_folder)
+            db.commit()
+            db.refresh(db_folder)
+            
+        target_folder_id = db_folder.id
+
+        has_description_col = 'Description' in df.columns
+        has_notes_col = 'Notes' in df.columns
 
         expenses = []
         for _, row in df.iterrows():
@@ -125,30 +152,33 @@ async def upload_expenses(file: UploadFile = File(...), db: Session = Depends(ge
             record_type = "expense"
             if has_type_col and not pd.isna(row['Type']):
                 val = str(row['Type']).strip().lower()
-                if val in ["income", "expense"]:
-                    record_type = val
-                    
-            folder_id = None
-            if has_folder_col and not pd.isna(row['Folder_Id']):
-                try:
-                    folder_id = int(row['Folder_Id'])
-                except ValueError:
-                    pass
+                if val in ["income", "credit", "deposit", "in", "cr", "salary"]:
+                    record_type = "income"
+                elif val in ["expense", "debit", "withdrawal", "out", "dr", "payment", "spend"]:
+                    record_type = "expense"
+                elif "income" in val or "credit" in val:
+                    record_type = "income"
+
+            description = ""
+            if has_description_col and not pd.isna(row['Description']):
+                description = str(row['Description'])
+            elif has_notes_col and not pd.isna(row['Notes']):
+                description = str(row['Notes'])
 
             expense = models.Expense(
                 date=row['Date'],
                 amount=float(row['Amount']),
                 category=str(row['Category']) if not pd.isna(row['Category']) else "Uncategorized",
-                description=str(row['Description']) if not pd.isna(row['Description']) else "",
+                description=description,
                 type=record_type,
-                folder_id=folder_id
+                folder_id=target_folder_id
             )
             db.add(expense)
             expenses.append(expense)
             
         db.commit()
         
-        return {"message": f"Successfully imported {len(expenses)} expenses."}
+        return {"message": f"Successfully imported {len(expenses)} expenses into folder '{folder_name}'."}
         
     except Exception as e:
         db.rollback()

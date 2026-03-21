@@ -5,6 +5,7 @@ import ExpenseList from '../components/ExpenseList';
 import RecordDialog from '../components/RecordDialog';
 import FilterBar from '../components/FilterBar';
 import { exportTransactionsToPDF } from '../utils/pdfExport';
+import { formatDate } from '../utils/dateFormatter';
 import { folderService } from '../services/folderService';
 import { expenseService } from '../services/expenseService';
 
@@ -92,7 +93,7 @@ const FolderDetails = () => {
             <header style={{ marginBottom: '2rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '2rem' }}>
                 <div>
                     <h1 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.02em', marginBottom: '4px' }}>{folder.name}</h1>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Created: {new Date(folder.created_at).toLocaleDateString()}</p>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Created: {formatDate(folder.created_at)}</p>
                 </div>
 
                 <div style={{ display: 'flex', gap: '2rem' }}>
