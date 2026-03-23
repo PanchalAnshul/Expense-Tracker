@@ -17,6 +17,16 @@ export const folderService = {
         return res.json();
     },
 
+    update: async (id, name) => {
+        const res = await fetch(`${BASE_URL}/folders/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+        if (!res.ok) throw new Error("Failed to rename folder");
+        return res.json();
+    },
+
     delete: async (id) => {
         const res = await fetch(`${BASE_URL}/folders/${id}`, { method: 'DELETE' });
         if (!res.ok) throw new Error("Failed to delete folder");

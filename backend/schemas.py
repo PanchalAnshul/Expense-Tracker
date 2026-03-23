@@ -1,6 +1,8 @@
 from pydantic import BaseModel
-from datetime import date, datetime
+from datetime import date as DateType, datetime
 from typing import Literal, Optional
+
+# Use DateType for annotations — a field named `date` must not shadow `datetime.date`
 
 class FolderBase(BaseModel):
     name: str
@@ -17,10 +19,9 @@ class FolderResponse(FolderBase):
     
     class Config:
         from_attributes = True
-from typing import Literal, Optional
 
 class ExpenseCreate(BaseModel):
-    date: date
+    date: DateType
     amount: float
     category: str
     description: str = ""
@@ -28,9 +29,31 @@ class ExpenseCreate(BaseModel):
     folder_id: Optional[int] = None
 
 class ExpenseUpdate(BaseModel):
-    date: Optional[date] = None
+    date: Optional[DateType] = None
     amount: Optional[float] = None
     category: Optional[str] = None
     description: Optional[str] = None
     type: Optional[Literal["income", "expense"]] = None
     folder_id: Optional[int] = None
+
+
+class AppSettingsResponse(BaseModel):
+    opening_balance: Optional[float] = None
+    expected_closing_balance: Optional[float] = None
+
+    class Config:
+        from_attributes = True
+
+
+class AppSettingsUpdate(BaseModel):
+    opening_balance: Optional[float] = None
+    expected_closing_balance: Optional[float] = None
+
+
+class UploadResult(BaseModel):
+    message: str
+    folder_id: int
+    folder_name: str
+    rows_imported: int
+    import_mode: str
+    last_balance: Optional[float] = None

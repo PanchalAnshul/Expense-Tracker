@@ -13,6 +13,16 @@ class Folder(Base):
     # establish relationship to expenses
     expenses = relationship("Expense", back_populates="folder", cascade="all, delete-orphan")
 
+class AppSettings(Base):
+    """Singleton row (id=1) for global reconciliation preferences."""
+
+    __tablename__ = "app_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    opening_balance = Column(Float, nullable=True)
+    expected_closing_balance = Column(Float, nullable=True)
+
+
 class Expense(Base):
     __tablename__ = "expenses"
 

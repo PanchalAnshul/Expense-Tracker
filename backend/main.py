@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import expenses, folders
+from routers import expenses, folders, settings as settings_router
 from database import engine
 import models
 
@@ -19,6 +19,7 @@ app.add_middleware(
 
 app.include_router(expenses.router, prefix="/api")
 app.include_router(folders.router, prefix="/api")
+app.include_router(settings_router.router, prefix="/api")
 
 @app.get("/")
 def root():

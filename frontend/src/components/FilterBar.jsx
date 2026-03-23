@@ -1,105 +1,127 @@
 import React from 'react';
 import { Search, Filter, Calendar } from 'lucide-react';
+import { useHeaderSearch } from '../context/SearchContext';
 
-const FilterBar = ({ filters, setFilters, folders }) => {
+const FilterBar = ({ filters, setFilters, folders, lockedFolderId }) => {
+    const { searchQuery, setSearchQuery } = useHeaderSearch();
+
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setFilters(prev => ({ ...prev, [name]: value }));
+        if (name === 'start_date') {
+            setFilters((prev) => {
+                const next = { ...prev, start_date: value };
+                if (value && prev.end_date && prev.end_date < value) {
+                    next.end_date = value;
+                }
+                return next;
+            });
+            return;
+        }
+        if (name === 'end_date') {
+            setFilters((prev) => {
+                if (prev.start_date && value && value < prev.start_date) {
+                    return { ...prev, end_date: prev.start_date };
+                }
+                return { ...prev, end_date: value };
+            });
+            return;
+        }
+        setFilters((prev) => ({ ...prev, [name]: value }));
     };
 
     const handleClear = () => {
-        setFilters({
-            search: '',
-            category: '',
-            start_date: '',
-            end_date: '',
-            folder_id: ''
+        setSearchQuery('');
+        setFilters((prev) => {
+            const next = {
+                ...prev,
+                category: '',
+                start_date: '',
+                end_date: '',
+            };
+            if (lockedFolderId == null && Object.prototype.hasOwnProperty.call(prev, 'folder_id')) {
+                next.folder_id = '';
+            }
+            return next;
         });
     };
 
-    const activeFilterCount = Object.values(filters).filter(v => v !== '').length;
+    const activeFilterCount =
+        Object.entries(filters).filter(([k, v]) => k !== 'folder_id' && v !== '').length +
+        (searchQuery ? 1 : 0);
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '2rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div className="filter-bar">
+            <div className="filter-bar-top">
+                <div className="filter-bar-title">
                     <Filter size={16} color="var(--text-secondary)" />
-                    <span style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>Filters</span>
+                    <span>Filters</span>
                     {activeFilterCount > 0 && (
-                        <span className="badge badge-neutral" style={{ fontSize: '0.65rem' }}>{activeFilterCount}</span>
+                        <span className="badge badge-neutral filter-count">{activeFilterCount}</span>
                     )}
                 </div>
                 {activeFilterCount > 0 && (
-                    <button className="btn-icon" onClick={handleClear} style={{ fontSize: '0.8125rem' }}>
-                        Clear All
+                    <button type="button" className="btn-text-clear" onClick={handleClear}>
+                        Clear all
                     </button>
                 )}
             </div>
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
-                {/* Search */}
-                <div style={{ position: 'relative', width: '220px' }}>
-                    <div style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }}>
-                        <Search size={14} />
-                    </div>
+            <div className="filter-bar-row">
+                <div className="filter-field filter-search">
+                    <Search size={14} className="filter-field-icon" aria-hidden />
                     <input
                         type="text"
-                        name="search"
-                        value={filters.search}
-                        onChange={handleChange}
-                        placeholder="Search..."
-                        className="input-field"
-                        style={{ paddingLeft: '32px', fontSize: '0.875rem', padding: '8px 12px 8px 32px' }}
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Matches category & description…"
+                        className="input-field filter-input"
                     />
                 </div>
 
-                {/* Category */}
-                <div style={{ width: '160px' }}>
+                <div className="filter-field filter-narrow">
                     <input
                         type="text"
                         name="category"
                         value={filters.category}
                         onChange={handleChange}
                         placeholder="Category"
-                        className="input-field"
-                        style={{ fontSize: '0.875rem', padding: '8px 12px' }}
+                        className="input-field filter-input"
                     />
                 </div>
 
-                {/* Date Constraints */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div className="filter-dates">
+                    <Calendar size={14} color="var(--text-tertiary)" aria-hidden />
                     <input
                         type="date"
                         name="start_date"
                         value={filters.start_date}
                         onChange={handleChange}
-                        className="input-field"
-                        style={{ fontSize: '0.875rem', padding: '8px 12px', width: '130px' }}
+                        className="input-field filter-input filter-date"
                     />
-                    <span style={{ color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>to</span>
+                    <span className="filter-to">to</span>
                     <input
                         type="date"
                         name="end_date"
                         value={filters.end_date}
                         onChange={handleChange}
-                        className="input-field"
-                        style={{ fontSize: '0.875rem', padding: '8px 12px', width: '130px' }}
+                        min={filters.start_date || undefined}
+                        className="input-field filter-input filter-date"
                     />
                 </div>
 
-                {/* Folder Select */}
-                {folders && folders.length > 0 && (
-                    <div style={{ width: '180px' }}>
+                {folders && folders.length > 0 && lockedFolderId == null && (
+                    <div className="filter-field filter-folder">
                         <select
                             name="folder_id"
                             value={filters.folder_id}
                             onChange={handleChange}
-                            className="input-field"
-                            style={{ fontSize: '0.875rem', padding: '8px 12px', appearance: 'none' }}
+                            className="input-field filter-input"
                         >
-                            <option value="">All Folders</option>
-                            {folders.map(f => (
-                                <option key={f.id} value={f.id}>{f.name}</option>
+                            <option value="">All folders</option>
+                            {folders.map((f) => (
+                                <option key={f.id} value={f.id}>
+                                    {f.name}
+                                </option>
                             ))}
                         </select>
                     </div>

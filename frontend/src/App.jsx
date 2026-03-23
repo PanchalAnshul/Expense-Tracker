@@ -5,7 +5,7 @@ import DashboardPage from './pages/DashboardPage';
 import Folders from './pages/Folders';
 import FolderDetails from './pages/FolderDetails';
 import Reports from './pages/Reports';
-import Settings from './pages/Settings';
+import SettingsPage from './features/settings/SettingsPage';
 
 const App = () => {
   return (
@@ -15,7 +15,7 @@ const App = () => {
         <Route path="/folders" element={<Folders />} />
         <Route path="/folders/:id" element={<FolderDetails />} />
         <Route path="/reports" element={<Reports />} />
-        <Route path="/settings" element={<Settings />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Routes>
     </Layout>
   );

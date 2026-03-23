@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Plus, Download } from 'lucide-react';
 import ExpenseList from '../components/ExpenseList';
@@ -8,126 +8,182 @@ import { exportTransactionsToPDF } from '../utils/pdfExport';
 import { formatDate } from '../utils/dateFormatter';
 import { folderService } from '../services/folderService';
 import { expenseService } from '../services/expenseService';
+import { useHeaderSearch } from '../context/SearchContext';
 
 const FolderDetails = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const { searchQuery } = useHeaderSearch();
 
     const [folder, setFolder] = useState(null);
     const [expenses, setExpenses] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // Dialog State
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingRecord, setEditingRecord] = useState(null);
+    const mainScrollPos = useRef(0);
 
-    // Filter State
+    const captureMainScroll = useCallback(() => {
+        const el = document.querySelector('.main-content');
+        mainScrollPos.current = el ? el.scrollTop : 0;
+    }, []);
+
+    const restoreMainScroll = useCallback(() => {
+        const y = mainScrollPos.current;
+        requestAnimationFrame(() => {
+            const el = document.querySelector('.main-content');
+            if (el) el.scrollTop = y;
+            requestAnimationFrame(() => {
+                const el2 = document.querySelector('.main-content');
+                if (el2) el2.scrollTop = y;
+            });
+        });
+    }, []);
+
     const [filters, setFilters] = useState({
-        search: '',
         category: '',
         start_date: '',
         end_date: '',
-        folder_id: id // lock to this folder natively
     });
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
-            // 1. Fetch Folder Meta
             const allFolders = await folderService.getAll();
-            const me = allFolders.find(f => f.id === parseInt(id));
-            setFolder(me);
+            const me = allFolders.find((f) => f.id === parseInt(id, 10));
+            setFolder(me || null);
 
-            // 2. Fetch scoped expenses
-            const data = await expenseService.getAll(filters);
+            const data = await expenseService.getAll({
+                ...filters,
+                folder_id: id,
+                search: searchQuery || undefined,
+            });
             setExpenses(data);
         } catch (e) {
-            console.error("Error loading folder details", e);
+            console.error('Error loading folder details', e);
         } finally {
             setLoading(false);
         }
-    };
+    }, [id, filters, searchQuery]);
+
+    const handleRecordSuccess = useCallback(async () => {
+        await fetchData();
+        restoreMainScroll();
+    }, [fetchData, restoreMainScroll]);
 
     useEffect(() => {
-        fetchData();
+        setLoading(true);
+        setFolder(null);
     }, [id]);
 
     useEffect(() => {
-        const timer = setTimeout(() => {
-            fetchData();
-        }, 300);
-        return () => clearTimeout(timer);
-    }, [filters]);
+        fetchData();
+    }, [fetchData]);
 
     const handleDelete = async (expId) => {
-        if (!window.confirm("Are you sure you want to delete this record?")) return;
+        if (!window.confirm('Are you sure you want to delete this record?')) return;
         try {
             await expenseService.delete(expId);
             fetchData();
-        } catch (err) { console.error("Error deleting", err); }
+        } catch (err) {
+            console.error('Error deleting', err);
+        }
     };
 
     const handleCreate = () => {
+        captureMainScroll();
         setEditingRecord(null);
         setIsDialogOpen(true);
     };
 
     const handleEdit = (rec) => {
+        captureMainScroll();
         setEditingRecord(rec);
         setIsDialogOpen(true);
     };
 
-    if (loading) return <div style={{ padding: '4rem', textAlign: 'center' }}>Loading folder hub...</div>;
-    if (!folder) return <div style={{ padding: '4rem', textAlign: 'center', color: 'var(--danger)' }}>Folder not found.</div>;
+    if (loading) {
+        return (
+            <div className="page-loading">
+                <div className="loading-spinner" />
+                <p>Loading folder…</p>
+            </div>
+        );
+    }
+    if (!folder) {
+        return (
+            <div className="page-error">
+                Folder not found.
+            </div>
+        );
+    }
 
     return (
         <div className="animate-fade-in">
             <button
-                className="btn btn-secondary"
+                type="button"
+                className="btn btn-secondary back-link"
                 onClick={() => navigate('/folders')}
-                style={{ marginBottom: '2rem', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
             >
-                <ChevronLeft size={18} /> Back to Folders
+                <ChevronLeft size={18} /> Back to folders
             </button>
 
-            {/* Folder Header & Summary */}
-            <header style={{ marginBottom: '2rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '2rem' }}>
+            <header className="page-header folder-header">
                 <div>
-                    <h1 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.02em', marginBottom: '4px' }}>{folder.name}</h1>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Created: {formatDate(folder.created_at)}</p>
+                    <h1 className="page-title">{folder.name}</h1>
+                    <p className="page-subtitle">Created {formatDate(folder.created_at)}</p>
                 </div>
 
-                <div style={{ display: 'flex', gap: '2rem' }}>
-                    <div>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.8125rem', fontWeight: 500, marginBottom: '4px' }}>Total Income</p>
-                        <p style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '1.125rem' }}>Rs.{folder.totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                <div className="folder-stats">
+                    <div className="folder-stat">
+                        <span className="folder-stat-label">Total income</span>
+                        <span className="folder-stat-value">
+                            Rs.{folder.totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </span>
                     </div>
-                    <div>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.8125rem', fontWeight: 500, marginBottom: '4px' }}>Total Expense</p>
-                        <p style={{ color: 'var(--text-primary)', fontWeight: 600, fontSize: '1.125rem' }}>Rs.{folder.totalExpense.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                    <div className="folder-stat">
+                        <span className="folder-stat-label">Total expense</span>
+                        <span className="folder-stat-value">
+                            Rs.{folder.totalExpense.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </span>
                     </div>
-                    <div style={{ paddingLeft: '2rem', borderLeft: '1px solid var(--glass-border)' }}>
-                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.8125rem', fontWeight: 500, marginBottom: '4px' }}>Net Balance</p>
-                        <p style={{ color: folder.balance >= 0 ? 'var(--success-color)' : 'var(--danger-color)', fontWeight: 700, fontSize: '1.25rem' }}>Rs.{Math.abs(folder.balance).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                    <div className="folder-stat folder-stat-balance">
+                        <span className="folder-stat-label">Net balance</span>
+                        <span
+                            className="folder-stat-value accent"
+                            style={{
+                                color: folder.balance >= 0 ? 'var(--success-color)' : 'var(--danger-color)',
+                            }}
+                        >
+                            Rs.{Math.abs(folder.balance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                        </span>
                     </div>
                 </div>
             </header>
 
-            {/* Action Bar */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                <h2 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-primary)' }}>Transactions</h2>
-                <div style={{ display: 'flex', gap: '1rem' }}>
-                    <button className="btn btn-secondary" onClick={() => exportTransactionsToPDF(expenses, folder)}>
+            <div className="section-head">
+                <h2 className="section-title">Transactions</h2>
+                <div className="section-actions">
+                    <button
+                        type="button"
+                        className="btn btn-secondary"
+                        onClick={() => exportTransactionsToPDF(expenses, folder)}
+                    >
                         <Download size={16} /> Export PDF
                     </button>
-                    <button className="btn btn-primary" onClick={handleCreate}>
-                        <Plus size={16} /> Add Record
+                    <button type="button" className="btn btn-primary" onClick={handleCreate}>
+                        <Plus size={16} /> Add record
                     </button>
                 </div>
             </div>
 
-            <FilterBar filters={filters} setFilters={setFilters} folders={[]} />
+            <FilterBar
+                filters={filters}
+                setFilters={setFilters}
+                folders={[]}
+                lockedFolderId={id}
+            />
 
-            <div style={{ marginTop: '1rem' }}>
+            <div className="section-body">
                 <ExpenseList
                     expenses={expenses}
                     onEdit={handleEdit}
@@ -135,12 +191,14 @@ const FolderDetails = () => {
                 />
             </div>
 
-            {/* Scoped Record Dialog */}
             <RecordDialog
                 isOpen={isDialogOpen}
-                onClose={() => setIsDialogOpen(false)}
-                onSuccess={fetchData}
-                initialData={editingRecord || { folder_id: id }}
+                onClose={() => {
+                    setIsDialogOpen(false);
+                    setEditingRecord(null);
+                }}
+                onSuccess={handleRecordSuccess}
+                initialData={editingRecord || { folder_id: parseInt(id, 10) }}
             />
         </div>
     );

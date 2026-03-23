@@ -75,18 +75,18 @@ const Reports = () => {
             </header>
 
             {/* Tabs */}
-            <div style={{ display: 'flex', gap: '4px', marginBottom: '2rem' }}>
+            <div className="report-tabs">
                 <button
-                    className="btn"
+                    type="button"
+                    className={`report-tab ${activeTab === 'monthly' ? 'active' : ''}`}
                     onClick={() => setActiveTab('monthly')}
-                    style={{ fontSize: '0.875rem', padding: '6px 12px', background: activeTab === 'monthly' ? 'var(--text-primary)' : 'transparent', color: activeTab === 'monthly' ? 'var(--bg-color)' : 'var(--text-secondary)', border: 'none', borderRadius: 'var(--radius-sm)' }}
                 >
                     Monthly
                 </button>
                 <button
-                    className="btn"
+                    type="button"
+                    className={`report-tab ${activeTab === 'yearly' ? 'active' : ''}`}
                     onClick={() => setActiveTab('yearly')}
-                    style={{ fontSize: '0.875rem', padding: '6px 12px', background: activeTab === 'yearly' ? 'var(--text-primary)' : 'transparent', color: activeTab === 'yearly' ? 'var(--bg-color)' : 'var(--text-secondary)', border: 'none', borderRadius: 'var(--radius-sm)' }}
                 >
                     Yearly
                 </button>

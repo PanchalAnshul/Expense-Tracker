@@ -1,21 +1,23 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import DashboardStat from '../components/Dashboard';
-import UploadExcel from '../components/UploadExcel';
+import DashboardStat from '../features/dashboard/Dashboard';
+import UploadExcel from '../features/import/UploadExcel';
 import ExpenseList from '../components/ExpenseList';
 import FilterBar from '../components/FilterBar';
 import { folderService } from '../services/folderService';
 import { expenseService } from '../services/expenseService';
+import { settingsService } from '../services/settingsService';
+import { useHeaderSearch } from '../context/SearchContext';
 
 const DashboardPage = () => {
     const [expenses, setExpenses] = useState([]);
     const [folders, setFolders] = useState([]);
+    const [appSettings, setAppSettings] = useState(null);
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
+    const { searchQuery } = useHeaderSearch();
 
-    // Filter State
     const [filters, setFilters] = useState({
-        search: '',
         category: '',
         start_date: '',
         end_date: '',
@@ -29,28 +31,40 @@ const DashboardPage = () => {
         } catch (e) { console.error("Could not load folders", e); }
     };
 
-    const fetchExpenses = async () => {
+    const fetchSettings = async () => {
         try {
-            const data = await expenseService.getAll(filters);
+            const s = await settingsService.get();
+            setAppSettings(s);
+        } catch {
+            setAppSettings(null);
+        }
+    };
+
+    const fetchExpenses = useCallback(async () => {
+        try {
+            const data = await expenseService.getAll({
+                ...filters,
+                search: searchQuery || undefined,
+            });
             setExpenses(data);
         } catch (error) {
             console.error("Failed to fetch expenses", error);
         } finally {
             setLoading(false);
         }
-    };
+    }, [filters, searchQuery]);
 
     useEffect(() => {
         fetchFolders();
+        fetchSettings();
     }, []);
 
-    // Fetch expenses whenever filters change (with small debounce visually if needed)
     useEffect(() => {
         const timer = setTimeout(() => {
             fetchExpenses();
-        }, 300); // 300ms debounce
+        }, 300);
         return () => clearTimeout(timer);
-    }, [filters]);
+    }, [fetchExpenses]);
 
     return (
         <>
@@ -60,7 +74,13 @@ const DashboardPage = () => {
                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Global summary of your financial health.</p>
                 </div>
                 <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                    <UploadExcel onUploadSuccess={fetchExpenses} />
+                    <UploadExcel
+                        onUploadSuccess={() => {
+                            fetchExpenses();
+                            fetchFolders();
+                            fetchSettings();
+                        }}
+                    />
                 </div>
             </header>
 
@@ -85,7 +105,7 @@ const DashboardPage = () => {
                             <FilterBar filters={filters} setFilters={setFilters} folders={folders} />
 
                             <section className="animate-fade-in" style={{ animationDelay: '0.1s', marginTop: '2rem' }}>
-                                <DashboardStat expenses={expenses} folders={folders} />
+                                <DashboardStat expenses={expenses} folders={folders} appSettings={appSettings} />
                             </section>
 
                             <section className="animate-fade-in" style={{ animationDelay: '0.2s', marginTop: '1rem' }}>

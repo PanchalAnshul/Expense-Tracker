@@ -3,3 +3,5 @@ uvicorn
 sqlalchemy
 pandas
 openpyxl
+python-multipart
+python-dateutil

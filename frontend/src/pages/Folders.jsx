@@ -1,21 +1,26 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FolderPlus, FolderOpen, Trash2 } from 'lucide-react';
+import { FolderPlus, FolderOpen, Trash2, Pencil, Check, X } from 'lucide-react';
 import { folderService } from '../services/folderService';
+import { useHeaderSearch } from '../context/SearchContext';
 
 const Folders = () => {
     const [folders, setFolders] = useState([]);
     const [newFolderName, setNewFolderName] = useState('');
     const [isCreating, setIsCreating] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [editingId, setEditingId] = useState(null);
+    const [editName, setEditName] = useState('');
+    const [savingId, setSavingId] = useState(null);
     const navigate = useNavigate();
+    const { searchQuery } = useHeaderSearch();
 
     const fetchFolders = async () => {
         try {
             const data = await folderService.getAll();
             setFolders(data);
-        } catch (error) {
-            console.error("Failed to load folders");
+        } catch {
+            console.error('Failed to load folders');
         } finally {
             setLoading(false);
         }
@@ -24,6 +29,12 @@ const Folders = () => {
     useEffect(() => {
         fetchFolders();
     }, []);
+
+    const filteredFolders = useMemo(() => {
+        const q = searchQuery.trim().toLowerCase();
+        if (!q) return folders;
+        return folders.filter((f) => f.name.toLowerCase().includes(q));
+    }, [folders, searchQuery]);
 
     const handleCreateFolder = async (e) => {
         e.preventDefault();
@@ -34,91 +45,190 @@ const Folders = () => {
             setNewFolderName('');
             setIsCreating(false);
             fetchFolders();
-        } catch (e) {
-            console.error("Error creating folder");
+        } catch {
+            console.error('Error creating folder');
         }
     };
 
-    const handleDeleteFolder = async (id, name) => {
-        if (!window.confirm(`Are you sure you want to delete folder "${name}" ? This removes the folder but keeps expenses globally visible.`)) return;
+    const handleDeleteFolder = async (folderId, name) => {
+        if (
+            !window.confirm(
+                `Delete folder "${name}"? The folder is removed; transactions stay in the database.`
+            )
+        ) {
+            return;
+        }
 
         try {
-            await folderService.delete(id);
+            await folderService.delete(folderId);
             fetchFolders();
-        } catch (e) { console.error("Error deleting folder"); }
+        } catch {
+            console.error('Error deleting folder');
+        }
+    };
+
+    const startRename = (f) => {
+        setEditingId(f.id);
+        setEditName(f.name);
+    };
+
+    const cancelRename = () => {
+        setEditingId(null);
+        setEditName('');
+    };
+
+    const saveRename = async (folderId) => {
+        const name = editName.trim();
+        if (!name) return;
+        setSavingId(folderId);
+        try {
+            await folderService.update(folderId, name);
+            setEditingId(null);
+            setEditName('');
+            fetchFolders();
+        } catch {
+            console.error('Error renaming folder');
+        } finally {
+            setSavingId(null);
+        }
     };
 
     return (
         <div className="animate-fade-in">
-            <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--glass-border)' }}>
+            <header className="page-header">
                 <div>
-                    <h1 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>Folders</h1>
-                    <p style={{ color: 'var(--text-secondary)', marginTop: '4px', fontSize: '0.875rem' }}>Organize shared expenses and trips.</p>
+                    <h1 className="page-title">Folders</h1>
+                    <p className="page-subtitle">
+                        Group trips and shared expenses. Use the top search to filter this list by name.
+                    </p>
                 </div>
-                <button className="btn btn-primary" onClick={() => setIsCreating(true)}>
-                    <FolderPlus size={16} /> New Folder
+                <button type="button" className="btn btn-primary" onClick={() => setIsCreating(true)}>
+                    <FolderPlus size={16} /> New folder
                 </button>
             </header>
 
             {isCreating && (
-                <div className="glass-panel" style={{ padding: '1.5rem', marginBottom: '2rem', animation: 'fadeIn 0.2s ease-out' }}>
-                    <form onSubmit={handleCreateFolder} style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                <div className="glass-panel folder-create-panel">
+                    <form onSubmit={handleCreateFolder} className="folder-create-form">
                         <input
                             type="text"
                             className="input-field"
-                            placeholder="E.g., Trip to Bali, Office Lunch"
+                            placeholder="e.g. Trip to Bali, office lunch"
                             value={newFolderName}
                             onChange={(e) => setNewFolderName(e.target.value)}
                             autoFocus
-                            style={{ flex: 1 }}
                         />
-                        <button type="submit" className="btn btn-primary" disabled={!newFolderName.trim()}>Create</button>
-                        <button type="button" className="btn btn-secondary" onClick={() => setIsCreating(false)}>Cancel</button>
+                        <button type="submit" className="btn btn-primary" disabled={!newFolderName.trim()}>
+                            Create
+                        </button>
+                        <button type="button" className="btn btn-secondary" onClick={() => setIsCreating(false)}>
+                            Cancel
+                        </button>
                     </form>
                 </div>
             )}
 
             {loading ? (
-                <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-tertiary)' }}>Loading folders...</div>
+                <div className="page-loading muted">
+                    <div className="loading-spinner" />
+                    <p>Loading folders…</p>
+                </div>
             ) : folders.length === 0 ? (
-                <div className="glass-panel" style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-secondary)' }}>
-                    <FolderOpen size={48} style={{ opacity: 0.5, marginBottom: '1rem', margin: '0 auto', display: 'block' }} />
-                    <p>No folders created yet. Group your expenses by creating one!</p>
+                <div className="glass-panel empty-state">
+                    <FolderOpen size={48} className="empty-state-icon" />
+                    <p className="empty-state-title">No folders yet</p>
+                    <p className="empty-state-text">Create a folder to organize expenses, then open it to add records.</p>
+                </div>
+            ) : filteredFolders.length === 0 ? (
+                <div className="glass-panel empty-state">
+                    <p className="empty-state-text">No folders match “{searchQuery}”. Try another search.</p>
                 </div>
             ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
-                    {folders.map(folder => (
+                <div className="folder-grid">
+                    {filteredFolders.map((folder) => (
                         <div
                             key={folder.id}
-                            className="glass-panel"
-                            onClick={() => navigate(`/folders/${folder.id}`)}
-                            style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', transition: 'transform 0.15s ease, border-color 0.15s ease', cursor: 'pointer' }}
-                            onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
-                            onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+                            className="glass-panel folder-card"
+                            onClick={() => editingId !== folder.id && navigate(`/folders/${folder.id}`)}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && editingId !== folder.id) navigate(`/folders/${folder.id}`);
+                            }}
                         >
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    <div style={{ width: 40, height: 40, borderRadius: 'var(--radius-md)', background: 'rgba(59, 130, 246, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <FolderOpen size={20} color="var(--accent-color)" />
-                                    </div>
-                                    <div>
-                                        <h3 style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '2px' }}>{folder.name}</h3>
-                                        <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>Expenses collection</p>
-                                    </div>
+                            <div className="folder-card-top">
+                                <div className="folder-card-icon-wrap">
+                                    <FolderOpen size={22} className="folder-card-icon" />
                                 </div>
-                                <button
-                                    className="btn-icon"
-                                    onClick={(e) => { e.stopPropagation(); handleDeleteFolder(folder.id, folder.name); }}
-                                    title="Delete Folder"
-                                    style={{ opacity: 0.6 }}
-                                >
-                                    <Trash2 size={16} color="var(--danger-color)" />
-                                </button>
+                                <div className="folder-card-main">
+                                    {editingId === folder.id ? (
+                                        <div
+                                            className="folder-rename-row"
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            <input
+                                                className="input-field folder-rename-input"
+                                                value={editName}
+                                                onChange={(e) => setEditName(e.target.value)}
+                                                autoFocus
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') saveRename(folder.id);
+                                                    if (e.key === 'Escape') cancelRename();
+                                                }}
+                                            />
+                                            <button
+                                                type="button"
+                                                className="btn-icon folder-rename-btn"
+                                                title="Save name"
+                                                onClick={() => saveRename(folder.id)}
+                                                disabled={savingId === folder.id}
+                                            >
+                                                <Check size={18} />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                className="btn-icon folder-rename-btn"
+                                                title="Cancel"
+                                                onClick={cancelRename}
+                                            >
+                                                <X size={18} />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <h3 className="folder-card-title">{folder.name}</h3>
+                                    )}
+                                    <p className="folder-card-meta">Expense collection</p>
+                                </div>
+                                <div className="folder-card-actions" onClick={(e) => e.stopPropagation()}>
+                                    {editingId !== folder.id && (
+                                        <button
+                                            type="button"
+                                            className="btn-icon"
+                                            title="Rename folder"
+                                            onClick={() => startRename(folder)}
+                                        >
+                                            <Pencil size={16} />
+                                        </button>
+                                    )}
+                                    <button
+                                        type="button"
+                                        className="btn-icon"
+                                        title="Delete folder"
+                                        onClick={() => handleDeleteFolder(folder.id, folder.name)}
+                                    >
+                                        <Trash2 size={16} className="icon-danger" />
+                                    </button>
+                                </div>
                             </div>
 
-                            <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', textTransform: 'uppercase', fontWeight: 500 }}>Net Balance</span>
-                                <span style={{ fontSize: '1rem', fontWeight: 600, color: folder.balance >= 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>
+                            <div className="folder-card-footer">
+                                <span className="folder-card-label">Net balance</span>
+                                <span
+                                    className="folder-card-balance"
+                                    style={{
+                                        color: folder.balance >= 0 ? 'var(--success-color)' : 'var(--danger-color)',
+                                    }}
+                                >
                                     Rs.{Math.abs(folder.balance)?.toFixed(2) || '0.00'}
                                 </span>
                             </div>

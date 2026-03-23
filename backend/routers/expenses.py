@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, Query
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_
+from sqlalchemy import or_
 from typing import List, Optional
 from datetime import date
 from database import get_db
@@ -9,10 +9,13 @@ import schemas
 import pandas as pd
 from io import BytesIO
 
+from services import excel_import
+
 router = APIRouter(
     prefix="/expenses",
     tags=["expenses"]
 )
+
 
 @router.get("/")
 def get_expenses(
@@ -50,6 +53,7 @@ def get_expenses(
 
     return query.order_by(models.Expense.date.desc()).all()
 
+
 @router.post("/")
 def create_expense(expense: schemas.ExpenseCreate, db: Session = Depends(get_db)):
     db_expense = models.Expense(
@@ -65,71 +69,65 @@ def create_expense(expense: schemas.ExpenseCreate, db: Session = Depends(get_db)
     db.refresh(db_expense)
     return db_expense
 
+
 @router.put("/{expense_id}")
 def update_expense(expense_id: int, expense_update: schemas.ExpenseUpdate, db: Session = Depends(get_db)):
     db_expense = db.query(models.Expense).filter(models.Expense.id == expense_id).first()
     if db_expense is None:
         raise HTTPException(status_code=404, detail="Item not found")
-        
-    update_data = expense_update.dict(exclude_unset=True)
+
+    update_data = (
+        expense_update.model_dump(exclude_unset=True)
+        if hasattr(expense_update, "model_dump")
+        else expense_update.dict(exclude_unset=True)
+    )
     for key, value in update_data.items():
         setattr(db_expense, key, value)
-        
+
     db.commit()
     db.refresh(db_expense)
     return db_expense
+
 
 @router.delete("/{expense_id}")
 def delete_expense(expense_id: int, db: Session = Depends(get_db)):
     db_expense = db.query(models.Expense).filter(models.Expense.id == expense_id).first()
     if db_expense is None:
         raise HTTPException(status_code=404, detail="Item not found")
-        
+
     db.delete(db_expense)
     db.commit()
     return {"message": f"Successfully deleted item {expense_id}"}
 
-@router.post("/upload")
+
+@router.post("/upload", response_model=schemas.UploadResult)
 async def upload_expenses(file: UploadFile = File(...), db: Session = Depends(get_db)):
     if not file.filename.endswith('.xlsx'):
         raise HTTPException(status_code=400, detail="Only .xlsx files are allowed")
-    
+
     try:
         content = await file.read()
         df = pd.read_excel(BytesIO(content))
-        
-        # Clean up column headers (strip whitespace and convert to Title Case)
-        df.columns = [str(col).strip().title() for col in df.columns]
-        
-        # Expected columns: Date, Amount, Category, Description
-        # Optional column: Type
-        # Expected columns: Date, Amount, Category
-        required_cols = {'Date', 'Amount', 'Category'}
-        if not required_cols.issubset(df.columns):
-            raise HTTPException(status_code=400, detail=f"Missing required columns. Found: {list(df.columns)}. Expected minimum: {list(required_cols)}")
-        
-        # Handle Date parsing and drop completely empty rows
-        df = df.dropna(how='all')
-        
-        from dateutil import parser
-        def robust_parse_date(val):
-            if pd.isna(val): return None
-            if hasattr(val, 'date'): return val.date()
-            if isinstance(val, date): return val
-            s = str(val).strip()
-            try:
-                return parser.parse(s, dayfirst=True).date()
-            except Exception:
-                pass
-            try:
-                return pd.to_datetime(s, dayfirst=True).date()
-            except Exception:
-                return None
+        df = excel_import.normalize_headers(df)
 
-        df['Date'] = df['Date'].apply(robust_parse_date)
-        
-        has_type_col = 'Type' in df.columns
-        
+        try:
+            mode = excel_import.detect_mode(list(df.columns))
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+
+        if mode == "classic":
+            rows_data, last_balance = excel_import.iter_classic_rows(df)
+            import_mode = "classic"
+        else:
+            rows_data, last_balance = excel_import.iter_bank_rows(df)
+            import_mode = "bank_yono"
+
+        if not rows_data:
+            raise HTTPException(
+                status_code=400,
+                detail="No valid rows found. Check Date and Amount/Debit/Credit columns.",
+            )
+
         folder_name = file.filename.rsplit('.', 1)[0]
         db_folder = db.query(models.Folder).filter(models.Folder.name == folder_name).first()
         if not db_folder:
@@ -137,49 +135,39 @@ async def upload_expenses(file: UploadFile = File(...), db: Session = Depends(ge
             db.add(db_folder)
             db.commit()
             db.refresh(db_folder)
-            
+
         target_folder_id = db_folder.id
-
-        has_description_col = 'Description' in df.columns
-        has_notes_col = 'Notes' in df.columns
-
         expenses = []
-        for _, row in df.iterrows():
-            # Validate types to avoid DB insertion errors
-            if pd.isna(row['Amount']) or pd.isna(row['Date']):
-                continue # Skip invalid rows
-                
-            record_type = "expense"
-            if has_type_col and not pd.isna(row['Type']):
-                val = str(row['Type']).strip().lower()
-                if val in ["income", "credit", "deposit", "in", "cr", "salary"]:
-                    record_type = "income"
-                elif val in ["expense", "debit", "withdrawal", "out", "dr", "payment", "spend"]:
-                    record_type = "expense"
-                elif "income" in val or "credit" in val:
-                    record_type = "income"
-
-            description = ""
-            if has_description_col and not pd.isna(row['Description']):
-                description = str(row['Description'])
-            elif has_notes_col and not pd.isna(row['Notes']):
-                description = str(row['Notes'])
-
+        for item in rows_data:
             expense = models.Expense(
-                date=row['Date'],
-                amount=float(row['Amount']),
-                category=str(row['Category']) if not pd.isna(row['Category']) else "Uncategorized",
-                description=description,
-                type=record_type,
-                folder_id=target_folder_id
+                date=item["date"],
+                amount=float(item["amount"]),
+                category=item["category"],
+                description=item.get("description") or "",
+                type=item["type"],
+                folder_id=target_folder_id,
             )
             db.add(expense)
             expenses.append(expense)
-            
+
         db.commit()
-        
-        return {"message": f"Successfully imported {len(expenses)} expenses into folder '{folder_name}'."}
-        
+
+        msg = (
+            f"Imported {len(expenses)} transaction(s) into folder '{folder_name}' "
+            f"({import_mode})."
+        )
+        return schemas.UploadResult(
+            message=msg,
+            folder_id=target_folder_id,
+            folder_name=folder_name,
+            rows_imported=len(expenses),
+            import_mode=import_mode,
+            last_balance=last_balance,
+        )
+
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
