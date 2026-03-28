@@ -1701,7 +1701,11 @@ strong,
   .folder-detail-hero,
   .panel-header,
   .command-bar-row,
-  .folder-create-inline {
+  .folder-create-inline,
+  .page-hero-actions,
+  .dashboard-import,
+  .duplicate-choice-actions,
+  .import-modal-actions {
     flex-direction: column;
     align-items: stretch;
   }
@@ -1741,6 +1745,15 @@ strong,
     margin-top: auto;
   }
 
+  .import-preview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-import-error {
+    position: static;
+    white-space: normal;
+  }
+
   .modal-backdrop {
     align-items: end;
     padding: 0;
@@ -1763,4 +1776,203 @@ strong,
   .main-content {
     padding-bottom: 110px;
   }
+}
+/* Import Flow */
+.page-hero-actions,
+.dashboard-import,
+.import-modal-actions,
+.duplicate-choice-actions,
+.transaction-tag-row,
+.import-progress-head {
+  display: flex;
+  align-items: center;
+}
+
+.page-hero-actions,
+.transaction-tag-row {
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dashboard-import {
+  position: relative;
+  gap: 12px;
+}
+
+.dashboard-import-button {
+  min-width: 152px;
+}
+
+.dashboard-import-link {
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.dashboard-import-error {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  margin: 0;
+  color: var(--expense-red);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.upload-excel-input-hidden {
+  display: none;
+}
+
+.import-modal {
+  width: min(100%, 620px);
+  display: grid;
+  gap: 18px;
+}
+
+.import-modal-header h2,
+.import-preview-summary p,
+.duplicate-choice-card p,
+.import-warning-item p,
+.import-helper-copy,
+.import-warnings-empty {
+  margin: 0;
+}
+
+.import-preview-grid,
+.import-warning-list {
+  display: grid;
+  gap: 12px;
+}
+
+.import-preview-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.import-preview-card,
+.import-schema-card,
+.duplicate-choice-card,
+.import-progress-card,
+.import-warning-item {
+  border: 1px solid var(--border-default);
+  border-radius: 16px;
+  background: var(--bg-surface);
+}
+
+.import-preview-card,
+.duplicate-choice-card,
+.import-progress-card,
+.import-warning-item {
+  padding: 16px;
+}
+
+.import-preview-card {
+  display: grid;
+  gap: 6px;
+}
+
+.import-preview-card span,
+.import-schema-row span:first-child {
+  color: var(--text-secondary);
+}
+
+.import-preview-summary {
+  display: grid;
+  gap: 8px;
+}
+
+.import-warning-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.28);
+  color: #f9cb72;
+}
+
+.import-warning-banner.info {
+  background: rgba(108, 142, 247, 0.12);
+  border-color: rgba(108, 142, 247, 0.28);
+  color: #a9bbff;
+}
+
+.duplicate-choice-card {
+  display: grid;
+  gap: 12px;
+}
+
+.duplicate-choice-actions,
+.import-modal-actions {
+  gap: 12px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.import-schema-card {
+  overflow: hidden;
+}
+
+.import-schema-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px 16px;
+}
+
+.import-schema-row + .import-schema-row {
+  border-top: 1px solid var(--border-subtle);
+}
+
+.import-schema-head {
+  background: rgba(108, 142, 247, 0.08);
+  font-weight: 700;
+}
+
+.import-progress-card {
+  display: grid;
+  gap: 16px;
+}
+
+.import-progress-head {
+  gap: 10px;
+}
+
+.import-progress-track {
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.import-progress-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #7ed8ff, #7aa5ff, #8de1b5);
+  transition: width 180ms ease-out;
+}
+
+.import-warnings-panel {
+  gap: 16px;
+}
+
+.import-warning-list {
+  margin-top: 12px;
+}
+
+.import-warning-item {
+  display: grid;
+  gap: 6px;
+}
+
+.transaction-tag-neutral {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary);
+}
+
+.spin-icon {
+  animation: spin 800ms linear infinite;
 }

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ChevronLeft, Download, Plus } from 'lucide-react';
 import ExpenseList from '../components/ExpenseList';
 import FilterBar from '../components/FilterBar';
@@ -15,6 +15,7 @@ import { useToast } from '../context/ToastContext';
 
 const FolderDetails = () => {
   const { id } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
   const toast = useToast();
   const { searchQuery } = useHeaderSearch();
@@ -24,6 +25,14 @@ const FolderDetails = () => {
   const [filters, setFilters] = useState({ category: '', start_date: '', end_date: '', folder_id: id });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingRecord, setEditingRecord] = useState(null);
+  const [importSummary, setImportSummary] = useState(location.state?.importSummary || null);
+
+  useEffect(() => {
+    if (location.state?.importSummary) {
+      setImportSummary(location.state.importSummary);
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.pathname, location.state, navigate]);
 
   const loadFolder = useCallback(async () => {
     setLoading(true);
@@ -112,6 +121,34 @@ const FolderDetails = () => {
           </article>
         ))}
       </section>
+
+      {importSummary ? (
+        <section className="panel-section import-warnings-panel">
+          <div className="panel-header">
+            <div>
+              <h2>Import Summary</h2>
+              <p>
+                {importSummary.rowsImported} transaction(s) imported into {importSummary.folderName}.
+              </p>
+            </div>
+            <button type="button" className="panel-link" onClick={() => setImportSummary(null)}>
+              Dismiss
+            </button>
+          </div>
+          {importSummary.warnings?.length ? (
+            <div className="import-warning-list">
+              {importSummary.warnings.map((warning) => (
+                <article key={`${warning.row}-${warning.message}`} className="import-warning-item">
+                  <strong>Row {warning.row}</strong>
+                  <p>{warning.message}</p>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="import-warnings-empty">No import warnings. Every valid row was imported cleanly.</p>
+          )}
+        </section>
+      ) : null}
 
       <QuickAddRecord onSuccess={loadFolder} defaultFolderId={Number(id)} sticky />
 

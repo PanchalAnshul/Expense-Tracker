@@ -36,11 +36,18 @@ const TransactionRow = ({ item, onEdit, onDelete, readOnly }) => {
         </span>
         <div className="transaction-copy">
           <strong>{item.description ? item.description : category.label}</strong>
-          {item.description && item.description.toLowerCase() !== category.label.toLowerCase() && (
-            <span className="transaction-tag" style={{ '--category-color': category.colorVar }}>
-              {category.emoji} {category.label}
-            </span>
-          )}
+          <div className="transaction-tag-row">
+            {item.description && item.description.toLowerCase() !== category.label.toLowerCase() && (
+              <span className="transaction-tag" style={{ '--category-color': category.colorVar }}>
+                {category.emoji} {category.label}
+              </span>
+            )}
+            {item.payment_mode ? (
+              <span className="transaction-tag transaction-tag-neutral">
+                {item.payment_mode}
+              </span>
+            ) : null}
+          </div>
         </div>
       </div>
 

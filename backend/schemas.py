@@ -26,6 +26,8 @@ class ExpenseCreate(BaseModel):
     category: str
     description: str = ""
     type: Literal["income", "expense"] = "expense"
+    payment_mode: Optional[str] = None
+    balance: Optional[float] = None
     folder_id: Optional[int] = None
 
 class ExpenseUpdate(BaseModel):
@@ -34,6 +36,8 @@ class ExpenseUpdate(BaseModel):
     category: Optional[str] = None
     description: Optional[str] = None
     type: Optional[Literal["income", "expense"]] = None
+    payment_mode: Optional[str] = None
+    balance: Optional[float] = None
     folder_id: Optional[int] = None
 
 
@@ -50,10 +54,31 @@ class AppSettingsUpdate(BaseModel):
     expected_closing_balance: Optional[float] = None
 
 
+class ImportWarning(BaseModel):
+    row: int
+    message: str
+
+
+class ImportPreviewResponse(BaseModel):
+    file_name: str
+    sheet_name: str
+    proposed_folder_name: str
+    suggested_folder_name: str
+    duplicate_exists: bool
+    file_size_bytes: int
+    file_size_warning: bool
+    transactions_found: int
+    credits_count: int
+    debits_count: int
+    date_range_start: Optional[DateType] = None
+    date_range_end: Optional[DateType] = None
+    warnings: list[ImportWarning] = []
+
+
 class UploadResult(BaseModel):
     message: str
     folder_id: int
     folder_name: str
     rows_imported: int
     import_mode: str
-    last_balance: Optional[float] = None
+    warnings: list[ImportWarning] = []

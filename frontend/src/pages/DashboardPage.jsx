@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
-  ArrowUpRight,
   CircleDollarSign,
   FolderOpen,
   TrendingDown,
@@ -12,6 +11,7 @@ import {
 import QuickAddRecord from '../components/QuickAddRecord';
 import FilterBar from '../components/FilterBar';
 import ExpenseList from '../components/ExpenseList';
+import UploadExcel from '../features/import/UploadExcel';
 import { expenseService } from '../services/expenseService';
 import { folderService } from '../services/folderService';
 import { settingsService } from '../services/settingsService';
@@ -114,10 +114,13 @@ const DashboardPage = () => {
             Quick add, recent history, and the financial signals that matter most right now.
           </p>
         </div>
-        <button type="button" className="btn btn-outline" onClick={() => navigate('/reports')}>
-          <CircleDollarSign size={16} />
-          View reports
-        </button>
+        <div className="page-hero-actions">
+          <UploadExcel onUploadSuccess={fetchPageData} />
+          <button type="button" className="btn btn-outline" onClick={() => navigate('/reports')}>
+            <CircleDollarSign size={16} />
+            View reports
+          </button>
+        </div>
       </section>
 
       <QuickAddRecord onSuccess={fetchPageData} />

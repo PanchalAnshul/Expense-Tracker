@@ -32,6 +32,8 @@ class Expense(Base):
     category = Column(String, index=True)
     description = Column(String, index=True)
     type = Column(String, index=True, default="expense") # "income" or "expense"
+    payment_mode = Column(String, nullable=True)
+    balance = Column(Float, nullable=True)
     
     folder_id = Column(Integer, ForeignKey("folders.id"), nullable=True)
     folder = relationship("Folder", back_populates="expenses")
