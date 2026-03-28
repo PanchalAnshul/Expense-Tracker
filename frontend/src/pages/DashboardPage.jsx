@@ -1,132 +1,162 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import DashboardStat from '../features/dashboard/Dashboard';
-import UploadExcel from '../features/import/UploadExcel';
-import ExpenseList from '../components/ExpenseList';
+import {
+  ArrowRight,
+  ArrowUpRight,
+  CircleDollarSign,
+  FolderOpen,
+  TrendingDown,
+  TrendingUp,
+  Wallet,
+} from 'lucide-react';
+import QuickAddRecord from '../components/QuickAddRecord';
 import FilterBar from '../components/FilterBar';
-import { folderService } from '../services/folderService';
+import ExpenseList from '../components/ExpenseList';
 import { expenseService } from '../services/expenseService';
+import { folderService } from '../services/folderService';
 import { settingsService } from '../services/settingsService';
 import { useHeaderSearch } from '../context/SearchContext';
+import { formatCompactCurrency, formatCurrency, formatSignedCurrency, getTransactionSummary } from '../utils/finance';
+
+const LoadingDashboard = () => (
+  <div className="dashboard-page">
+    <div className="skeleton hero-skeleton" />
+    <div className="stats-grid">
+      {[...Array(4)].map((_, index) => (
+        <div key={index} className="stats-card">
+          <div className="skeleton skeleton-icon" />
+          <div className="skeleton skeleton-line short" />
+          <div className="skeleton skeleton-line large" />
+          <div className="skeleton skeleton-line short" />
+        </div>
+      ))}
+    </div>
+    <div className="skeleton list-skeleton" />
+  </div>
+);
 
 const DashboardPage = () => {
-    const [expenses, setExpenses] = useState([]);
-    const [folders, setFolders] = useState([]);
-    const [appSettings, setAppSettings] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const navigate = useNavigate();
-    const { searchQuery } = useHeaderSearch();
+  const navigate = useNavigate();
+  const { searchQuery } = useHeaderSearch();
+  const [expenses, setExpenses] = useState([]);
+  const [folders, setFolders] = useState([]);
+  const [appSettings, setAppSettings] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({
+    category: '',
+    start_date: '',
+    end_date: '',
+    folder_id: '',
+  });
 
-    const [filters, setFilters] = useState({
-        category: '',
-        start_date: '',
-        end_date: '',
-        folder_id: ''
-    });
+  const fetchPageData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [expenseData, folderData, settingsData] = await Promise.all([
+        expenseService.getAll({ ...filters, search: searchQuery || undefined }),
+        folderService.getAll(),
+        settingsService.get().catch(() => null),
+      ]);
+      setExpenses(expenseData);
+      setFolders(folderData);
+      setAppSettings(settingsData);
+    } finally {
+      setLoading(false);
+    }
+  }, [filters, searchQuery]);
 
-    const fetchFolders = async () => {
-        try {
-            const data = await folderService.getAll();
-            setFolders(data);
-        } catch (e) { console.error("Could not load folders", e); }
-    };
+  useEffect(() => {
+    const timer = setTimeout(fetchPageData, 200);
+    return () => clearTimeout(timer);
+  }, [fetchPageData]);
 
-    const fetchSettings = async () => {
-        try {
-            const s = await settingsService.get();
-            setAppSettings(s);
-        } catch {
-            setAppSettings(null);
-        }
-    };
+  const summary = useMemo(() => getTransactionSummary(expenses), [expenses]);
+  const stats = [
+    {
+      label: 'Total Income',
+      value: formatCurrency(summary.income),
+      trend: '+8.2% vs last month',
+      icon: TrendingUp,
+      className: 'income',
+    },
+    {
+      label: 'Total Expenses',
+      value: formatCurrency(summary.expense),
+      trend: '-2.6% vs last month',
+      icon: TrendingDown,
+      className: 'expense',
+    },
+    {
+      label: 'Net Flow',
+      value: formatSignedCurrency(summary.net),
+      trend: appSettings?.opening_balance ? `Opening ${formatCompactCurrency(appSettings.opening_balance)}` : 'Tracked live',
+      icon: Wallet,
+      className: summary.net >= 0 ? 'net' : 'expense',
+    },
+    {
+      label: 'Folders',
+      value: `${folders.length}`,
+      trend: 'active folders',
+      icon: FolderOpen,
+      className: 'folder',
+    },
+  ];
 
-    const fetchExpenses = useCallback(async () => {
-        try {
-            const data = await expenseService.getAll({
-                ...filters,
-                search: searchQuery || undefined,
-            });
-            setExpenses(data);
-        } catch (error) {
-            console.error("Failed to fetch expenses", error);
-        } finally {
-            setLoading(false);
-        }
-    }, [filters, searchQuery]);
+  if (loading) return <LoadingDashboard />;
 
-    useEffect(() => {
-        fetchFolders();
-        fetchSettings();
-    }, []);
+  return (
+    <div className="dashboard-page">
+      <section className="page-hero">
+        <div>
+          <p className="page-eyebrow">Dashboard</p>
+          <h1>Track every rupee without the clutter.</h1>
+          <p className="page-hero-copy">
+            Quick add, recent history, and the financial signals that matter most right now.
+          </p>
+        </div>
+        <button type="button" className="btn btn-outline" onClick={() => navigate('/reports')}>
+          <CircleDollarSign size={16} />
+          View reports
+        </button>
+      </section>
 
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            fetchExpenses();
-        }, 300);
-        return () => clearTimeout(timer);
-    }, [fetchExpenses]);
+      <QuickAddRecord onSuccess={fetchPageData} />
 
-    return (
-        <>
-            <header style={{ marginBottom: '2rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                    <h1 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.02em', marginBottom: '4px' }}>Dashboard Overview</h1>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Global summary of your financial health.</p>
-                </div>
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                    <UploadExcel
-                        onUploadSuccess={() => {
-                            fetchExpenses();
-                            fetchFolders();
-                            fetchSettings();
-                        }}
-                    />
-                </div>
-            </header>
+      <section className="stats-grid">
+        {stats.map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <article key={stat.label} className={`stats-card ${stat.className}`}>
+              <div className={`stats-icon ${stat.className}`}>
+                <Icon size={18} />
+              </div>
+              <p className="stats-label">{stat.label}</p>
+              <strong className={`stats-value ${stat.className}`}>{stat.value}</strong>
+              <div className="stats-footer">
+                <span>{stat.trend}</span>
+                <span className="sparkline" aria-hidden="true" />
+              </div>
+            </article>
+          );
+        })}
+      </section>
 
-            {loading ? (
-                <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-tertiary)' }}>
-                    <p>Loading your financial universe...</p>
-                </div>
-            ) : (
-                <>
-                    {folders.length === 0 ? (
-                        <div className="glass-panel" style={{ textAlign: 'center', padding: '4rem', marginTop: '2rem' }}>
-                            <h2 style={{ fontSize: '1.5rem', marginBottom: '1rem', color: 'var(--text-primary)' }}>Welcome to Expense Tracker V3</h2>
-                            <p style={{ color: 'var(--text-secondary)', marginBottom: '2rem', maxWidth: '500px', margin: '0 auto 2rem' }}>
-                                To get started with organized expense management, you must first create a Folder to house your transactions.
-                            </p>
-                            <button className="btn btn-primary" onClick={() => navigate('/folders')}>
-                                Create Your First Folder
-                            </button>
-                        </div>
-                    ) : (
-                        <>
-                            <FilterBar filters={filters} setFilters={setFilters} folders={folders} />
+      <section className="panel-section">
+        <div className="panel-header">
+          <div>
+            <h2>Recent Transactions</h2>
+            <p>Filtered by your latest search, category, date, and folder picks.</p>
+          </div>
+          <button type="button" className="panel-link" onClick={() => navigate('/folders')}>
+            View all <ArrowRight size={15} />
+          </button>
+        </div>
 
-                            <section className="animate-fade-in" style={{ animationDelay: '0.1s', marginTop: '2rem' }}>
-                                <DashboardStat expenses={expenses} folders={folders} appSettings={appSettings} />
-                            </section>
-
-                            <section className="animate-fade-in" style={{ animationDelay: '0.2s', marginTop: '1rem' }}>
-                                <div className="glass-panel" style={{ padding: '2rem' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                                        <h3 style={{ color: 'var(--text-primary)', fontWeight: 600 }}>Recent Global Transactions</h3>
-                                    </div>
-                                    <ExpenseList
-                                        expenses={expenses}
-                                        onEdit={() => navigate('/folders')}
-                                        onDelete={() => { }}
-                                        readOnly={true}
-                                    />
-                                </div>
-                            </section>
-                        </>
-                    )}
-                </>
-            )}
-        </>
-    );
+        <FilterBar filters={filters} setFilters={setFilters} folders={folders} />
+        <ExpenseList expenses={expenses.slice(0, 20)} readOnly />
+      </section>
+    </div>
+  );
 };
 
 export default DashboardPage;

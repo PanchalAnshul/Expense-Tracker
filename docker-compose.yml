@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: et_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount a local directory to persist the SQLite DB across container restarts
+      - ./data:/app/data
+    environment:
+      - DATABASE_URL=sqlite:///./data/expenses_v2.db # Make sure backend supports configurable DB path, or change according to your setup!
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: et_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    restart: unless-stopped

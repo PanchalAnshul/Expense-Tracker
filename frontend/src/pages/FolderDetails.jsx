@@ -1,207 +1,149 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Plus, Download } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { ChevronLeft, Download, Plus } from 'lucide-react';
 import ExpenseList from '../components/ExpenseList';
-import RecordDialog from '../components/RecordDialog';
 import FilterBar from '../components/FilterBar';
+import QuickAddRecord from '../components/QuickAddRecord';
+import RecordDialog from '../components/RecordDialog';
+import { expenseService } from '../services/expenseService';
+import { folderService } from '../services/folderService';
 import { exportTransactionsToPDF } from '../utils/pdfExport';
 import { formatDate } from '../utils/dateFormatter';
-import { folderService } from '../services/folderService';
-import { expenseService } from '../services/expenseService';
+import { formatCurrency } from '../utils/finance';
 import { useHeaderSearch } from '../context/SearchContext';
+import { useToast } from '../context/ToastContext';
 
 const FolderDetails = () => {
-    const { id } = useParams();
-    const navigate = useNavigate();
-    const { searchQuery } = useHeaderSearch();
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const toast = useToast();
+  const { searchQuery } = useHeaderSearch();
+  const [folder, setFolder] = useState(null);
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({ category: '', start_date: '', end_date: '', folder_id: id });
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState(null);
 
-    const [folder, setFolder] = useState(null);
-    const [expenses, setExpenses] = useState([]);
-    const [loading, setLoading] = useState(true);
-
-    const [isDialogOpen, setIsDialogOpen] = useState(false);
-    const [editingRecord, setEditingRecord] = useState(null);
-    const mainScrollPos = useRef(0);
-
-    const captureMainScroll = useCallback(() => {
-        const el = document.querySelector('.main-content');
-        mainScrollPos.current = el ? el.scrollTop : 0;
-    }, []);
-
-    const restoreMainScroll = useCallback(() => {
-        const y = mainScrollPos.current;
-        requestAnimationFrame(() => {
-            const el = document.querySelector('.main-content');
-            if (el) el.scrollTop = y;
-            requestAnimationFrame(() => {
-                const el2 = document.querySelector('.main-content');
-                if (el2) el2.scrollTop = y;
-            });
-        });
-    }, []);
-
-    const [filters, setFilters] = useState({
-        category: '',
-        start_date: '',
-        end_date: '',
-    });
-
-    const fetchData = useCallback(async () => {
-        try {
-            const allFolders = await folderService.getAll();
-            const me = allFolders.find((f) => f.id === parseInt(id, 10));
-            setFolder(me || null);
-
-            const data = await expenseService.getAll({
-                ...filters,
-                folder_id: id,
-                search: searchQuery || undefined,
-            });
-            setExpenses(data);
-        } catch (e) {
-            console.error('Error loading folder details', e);
-        } finally {
-            setLoading(false);
-        }
-    }, [id, filters, searchQuery]);
-
-    const handleRecordSuccess = useCallback(async () => {
-        await fetchData();
-        restoreMainScroll();
-    }, [fetchData, restoreMainScroll]);
-
-    useEffect(() => {
-        setLoading(true);
-        setFolder(null);
-    }, [id]);
-
-    useEffect(() => {
-        fetchData();
-    }, [fetchData]);
-
-    const handleDelete = async (expId) => {
-        if (!window.confirm('Are you sure you want to delete this record?')) return;
-        try {
-            await expenseService.delete(expId);
-            fetchData();
-        } catch (err) {
-            console.error('Error deleting', err);
-        }
-    };
-
-    const handleCreate = () => {
-        captureMainScroll();
-        setEditingRecord(null);
-        setIsDialogOpen(true);
-    };
-
-    const handleEdit = (rec) => {
-        captureMainScroll();
-        setEditingRecord(rec);
-        setIsDialogOpen(true);
-    };
-
-    if (loading) {
-        return (
-            <div className="page-loading">
-                <div className="loading-spinner" />
-                <p>Loading folder…</p>
-            </div>
-        );
+  const loadFolder = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [folders, expenses] = await Promise.all([
+        folderService.getAll(),
+        expenseService.getAll({ ...filters, folder_id: id, search: searchQuery || undefined }),
+      ]);
+      setFolder(folders.find((item) => String(item.id) === String(id)) || null);
+      setRecords(expenses);
+    } finally {
+      setLoading(false);
     }
-    if (!folder) {
-        return (
-            <div className="page-error">
-                Folder not found.
-            </div>
-        );
+  }, [filters, id, searchQuery]);
+
+  useEffect(() => {
+    const timer = setTimeout(loadFolder, 180);
+    return () => clearTimeout(timer);
+  }, [loadFolder]);
+
+  const deleteRecord = async (item) => {
+    if (!window.confirm('Delete this transaction?')) return;
+    try {
+      await expenseService.delete(item.id);
+      toast.info({
+        message: 'Transaction deleted',
+        actionLabel: 'Undo',
+        onAction: () => setDialogOpen(true),
+      });
+      loadFolder();
+    } catch {
+      toast.error('Unable to delete that transaction.');
     }
+  };
 
-    return (
-        <div className="animate-fade-in">
-            <button
-                type="button"
-                className="btn btn-secondary back-link"
-                onClick={() => navigate('/folders')}
-            >
-                <ChevronLeft size={18} /> Back to folders
-            </button>
+  const stats = useMemo(
+    () =>
+      folder
+        ? [
+            { label: 'Income', value: formatCurrency(folder.totalIncome), className: 'income' },
+            { label: 'Expense', value: formatCurrency(folder.totalExpense), className: 'expense' },
+            { label: 'Net Balance', value: formatCurrency(folder.balance), className: folder.balance >= 0 ? 'net' : 'expense' },
+          ]
+        : [],
+    [folder]
+  );
 
-            <header className="page-header folder-header">
-                <div>
-                    <h1 className="page-title">{folder.name}</h1>
-                    <p className="page-subtitle">Created {formatDate(folder.created_at)}</p>
-                </div>
+  if (loading) {
+    return <div className="page-loading"><div className="loading-spinner" /><p>Loading folder...</p></div>;
+  }
 
-                <div className="folder-stats">
-                    <div className="folder-stat">
-                        <span className="folder-stat-label">Total income</span>
-                        <span className="folder-stat-value">
-                            Rs.{folder.totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </span>
-                    </div>
-                    <div className="folder-stat">
-                        <span className="folder-stat-label">Total expense</span>
-                        <span className="folder-stat-value">
-                            Rs.{folder.totalExpense.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </span>
-                    </div>
-                    <div className="folder-stat folder-stat-balance">
-                        <span className="folder-stat-label">Net balance</span>
-                        <span
-                            className="folder-stat-value accent"
-                            style={{
-                                color: folder.balance >= 0 ? 'var(--success-color)' : 'var(--danger-color)',
-                            }}
-                        >
-                            Rs.{Math.abs(folder.balance).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                        </span>
-                    </div>
-                </div>
-            </header>
+  if (!folder) {
+    return <div className="page-loading"><p>Folder not found.</p></div>;
+  }
 
-            <div className="section-head">
-                <h2 className="section-title">Transactions</h2>
-                <div className="section-actions">
-                    <button
-                        type="button"
-                        className="btn btn-secondary"
-                        onClick={() => exportTransactionsToPDF(expenses, folder)}
-                    >
-                        <Download size={16} /> Export PDF
-                    </button>
-                    <button type="button" className="btn btn-primary" onClick={handleCreate}>
-                        <Plus size={16} /> Add record
-                    </button>
-                </div>
-            </div>
+  return (
+    <div className="folder-details-page">
+      <button type="button" className="back-button" onClick={() => navigate('/folders')}>
+        <ChevronLeft size={16} />
+        Back to Folders
+      </button>
 
-            <FilterBar
-                filters={filters}
-                setFilters={setFilters}
-                folders={[]}
-                lockedFolderId={id}
-            />
-
-            <div className="section-body">
-                <ExpenseList
-                    expenses={expenses}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                />
-            </div>
-
-            <RecordDialog
-                isOpen={isDialogOpen}
-                onClose={() => {
-                    setIsDialogOpen(false);
-                    setEditingRecord(null);
-                }}
-                onSuccess={handleRecordSuccess}
-                initialData={editingRecord || { folder_id: parseInt(id, 10) }}
-            />
+      <section className="folder-detail-hero">
+        <div>
+          <p className="page-eyebrow">Folder detail</p>
+          <h1>{folder.name}</h1>
+          <p>Created {formatDate(folder.created_at)}</p>
         </div>
-    );
+        <div className="folder-detail-actions">
+          <button type="button" className="btn btn-outline" onClick={() => exportTransactionsToPDF(records, folder)}>
+            <Download size={16} />
+            Export PDF
+          </button>
+          <button type="button" className="btn btn-gradient" onClick={() => setDialogOpen(true)}>
+            <Plus size={16} />
+            Add Record
+          </button>
+        </div>
+      </section>
+
+      <section className="folder-detail-stats-grid">
+        {stats.map((stat) => (
+          <article key={stat.label} className={`folder-stat-card ${stat.className}`}>
+            <span>{stat.label}</span>
+            <strong>{stat.value}</strong>
+          </article>
+        ))}
+      </section>
+
+      <QuickAddRecord onSuccess={loadFolder} defaultFolderId={Number(id)} sticky />
+
+      <section className="panel-section">
+        <div className="panel-header">
+          <div>
+            <h2>Transaction History</h2>
+            <p>Sortable, filterable history inside this folder.</p>
+          </div>
+        </div>
+        <FilterBar filters={filters} setFilters={setFilters} lockedFolderId={id} />
+        <ExpenseList
+          expenses={records}
+          onEdit={(item) => {
+            setEditingRecord(item);
+            setDialogOpen(true);
+          }}
+          onDelete={deleteRecord}
+        />
+      </section>
+
+      <RecordDialog
+        isOpen={dialogOpen}
+        onClose={() => {
+          setDialogOpen(false);
+          setEditingRecord(null);
+        }}
+        onSuccess={loadFolder}
+        initialData={editingRecord || { folder_id: Number(id) }}
+      />
+    </div>
+  );
 };
 
 export default FolderDetails;

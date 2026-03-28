@@ -1,153 +1,258 @@
-import React, { useState, useEffect } from 'react';
-import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { Presentation, Download } from 'lucide-react';
-import { exportTransactionsToPDF } from '../utils/pdfExport';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import { Download, PiggyBank, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
 import { expenseService } from '../services/expenseService';
+import { exportTransactionsToPDF } from '../utils/pdfExport';
+import { formatCompactCurrency, formatCurrency, getCategoryMeta, getTransactionSummary } from '../utils/finance';
 
-const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f43f5e'];
+const categoryColors = [
+  'var(--category-food)',
+  'var(--category-transport)',
+  'var(--category-rent)',
+  'var(--category-shopping)',
+  'var(--category-health)',
+  'var(--category-entertainment)',
+  'var(--category-education)',
+  'var(--category-utilities)',
+];
+
+const ChartTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="chart-tooltip">
+      <strong>{label}</strong>
+      {payload.map((item) => (
+        <p key={item.name} style={{ color: item.color }}>
+          {item.name}: {formatCurrency(item.value)}
+        </p>
+      ))}
+    </div>
+  );
+};
 
 const Reports = () => {
-    const [expenses, setExpenses] = useState([]);
-    const [loading, setLoading] = useState(true);
-    const [activeTab, setActiveTab] = useState('monthly'); // 'monthly' | 'yearly'
+  const [records, setRecords] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [view, setView] = useState('monthly');
 
-    useEffect(() => {
-        const fetchReports = async () => {
-            try {
-                const data = await expenseService.getAll();
-                setExpenses(data);
-            } catch (err) {
-                console.error("Error fetching data for reports", err);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchReports();
-    }, []);
+  useEffect(() => {
+    expenseService
+      .getAll()
+      .then(setRecords)
+      .finally(() => setLoading(false));
+  }, []);
 
-    if (loading) return <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-tertiary)' }}>Loading analytics...</div>;
-    if (!expenses.length) return (
-        <div className="glass-panel" style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-secondary)' }}>
-            <Presentation size={48} style={{ opacity: 0.5, marginBottom: '1rem', margin: '0 auto', display: 'block' }} />
-            <p>No data available to generate reports.</p>
-        </div>
-    );
+  const summary = useMemo(() => getTransactionSummary(records), [records]);
+  const savingsRate = summary.income ? (summary.net / summary.income) * 100 : 0;
 
-    // Process data for charts
-    const expenseRecords = expenses.filter(e => e.type === 'expense');
-
-    // 1. Category Breakdown (Pie Chart)
-    const categoryTotals = expenseRecords.reduce((acc, curr) => {
-        acc[curr.category] = (acc[curr.category] || 0) + curr.amount;
-        return acc;
+  const barData = useMemo(() => {
+    const bucket = records.reduce((acc, entry) => {
+      const key = view === 'monthly' ? entry.date.slice(0, 7) : entry.date.slice(0, 4);
+      if (!acc[key]) acc[key] = { name: key, Income: 0, Expenses: 0, Net: 0 };
+      if (entry.type === 'income') acc[key].Income += Number(entry.amount);
+      if (entry.type === 'expense') acc[key].Expenses += Number(entry.amount);
+      acc[key].Net = acc[key].Income - acc[key].Expenses;
+      return acc;
     }, {});
+    return Object.values(bucket).sort((a, b) => a.name.localeCompare(b.name));
+  }, [records, view]);
 
-    const pieData = Object.keys(categoryTotals).map(key => ({
-        name: key,
-        value: categoryTotals[key]
-    })).sort((a, b) => b.value - a.value);
+  const donutData = useMemo(() => {
+    const totals = records
+      .filter((entry) => entry.type === 'expense')
+      .reduce((acc, entry) => {
+        acc[entry.category] = (acc[entry.category] || 0) + Number(entry.amount);
+        return acc;
+      }, {});
+    return Object.entries(totals)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  }, [records]);
 
-    // 2. Bar Chart Logic Based on Tab
-    const getAggregatedBarData = () => {
-        const totals = expenses.reduce((acc, curr) => {
-            const key = activeTab === 'monthly' ? curr.date.substring(0, 7) : curr.date.substring(0, 4); // YYYY-MM or YYYY
-            if (!acc[key]) acc[key] = { name: key, Income: 0, Expense: 0 };
-            if (curr.type === 'income') acc[key].Income += curr.amount;
-            else acc[key].Expense += curr.amount;
-            return acc;
-        }, {});
+  const trendData = barData.map((item) => ({ name: item.name, Savings: item.Net }));
 
-        return Object.values(totals).sort((a, b) => a.name.localeCompare(b.name));
-    };
+  const topCategories = donutData.map((item) => ({
+    ...item,
+    percent: summary.expense ? (item.value / summary.expense) * 100 : 0,
+    meta: getCategoryMeta(item.name),
+  }));
 
-    const barData = getAggregatedBarData();
+  if (loading) {
+    return <div className="page-loading"><div className="loading-spinner" /><p>Loading reports...</p></div>;
+  }
 
-    return (
-        <div className="animate-fade-in">
-            <header style={{ marginBottom: '2rem', paddingBottom: '1.5rem', borderBottom: '1px solid var(--glass-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                    <h1 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)', letterSpacing: '-0.02em', marginBottom: '4px' }}>Reports</h1>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>Deep analytics across all {expenses.length} transactions.</p>
-                </div>
-                <button className="btn btn-secondary" onClick={() => exportTransactionsToPDF(expenses)}>
-                    <Download size={16} /> Export PDF
-                </button>
-            </header>
-
-            {/* Tabs */}
-            <div className="report-tabs">
-                <button
-                    type="button"
-                    className={`report-tab ${activeTab === 'monthly' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('monthly')}
-                >
-                    Monthly
-                </button>
-                <button
-                    type="button"
-                    className={`report-tab ${activeTab === 'yearly' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('yearly')}
-                >
-                    Yearly
-                </button>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '2rem' }}>
-
-                {/* Pie Chart: Expenses by Category */}
-                <div className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column' }}>
-                    <h3 style={{ marginBottom: '1rem', color: 'var(--text-primary)', fontWeight: 600 }}>Expenses by Category</h3>
-                    <div style={{ height: '300px', width: '100%' }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                                <Pie
-                                    data={pieData}
-                                    cx="50%"
-                                    cy="50%"
-                                    innerRadius={60}
-                                    outerRadius={100}
-                                    paddingAngle={5}
-                                    dataKey="value"
-                                >
-                                    {pieData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                    ))}
-                                </Pie>
-                                <Tooltip
-                                    formatter={(value) => `Rs.${value.toFixed(2)}`}
-                                    contentStyle={{ backgroundColor: 'var(--panel-bg)', borderColor: 'var(--glass-border)', color: 'var(--text-primary)' }}
-                                />
-                                <Legend />
-                            </PieChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-
-                {/* Bar Chart: Cash Flow */}
-                <div className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column' }}>
-                    <h3 style={{ marginBottom: '1rem', color: 'var(--text-primary)', fontWeight: 600 }}>{activeTab === 'monthly' ? 'Monthly' : 'Yearly'} Cash Flow</h3>
-                    <div style={{ height: '300px', width: '100%' }}>
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={barData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
-                                <CartesianGrid strokeDasharray="3 3" stroke="var(--glass-border)" vertical={false} />
-                                <XAxis dataKey="name" stroke="var(--text-secondary)" />
-                                <YAxis stroke="var(--text-secondary)" tickFormatter={(value) => `Rs.${value}`} />
-                                <Tooltip
-                                    formatter={(value) => `Rs.${value.toFixed(2)}`}
-                                    cursor={{ fill: 'rgba(128,128,128,0.1)' }}
-                                    contentStyle={{ backgroundColor: 'var(--panel-bg)', borderColor: 'var(--glass-border)', color: 'var(--text-primary)' }}
-                                />
-                                <Legend />
-                                <Bar dataKey="Income" fill="#34C759" radius={[4, 4, 0, 0]} maxBarSize={50} />
-                                <Bar dataKey="Expense" fill="#FF3B30" radius={[4, 4, 0, 0]} maxBarSize={50} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-
-            </div>
+  return (
+    <div className="reports-page">
+      <section className="page-hero">
+        <div>
+          <p className="page-eyebrow">Reports</p>
+          <h1>Analytics designed for fast financial decisions.</h1>
+          <p className="page-hero-copy">Understand cash flow, category concentration, and savings momentum across 2000+ records.</p>
         </div>
-    );
+        <button type="button" className="btn btn-outline" onClick={() => exportTransactionsToPDF(records)}>
+          <Download size={16} />
+          Export PDF
+        </button>
+      </section>
+
+      <section className="stats-grid">
+        {[
+          { label: 'Total Income', value: formatCurrency(summary.income), icon: TrendingUp, className: 'income' },
+          { label: 'Total Expenses', value: formatCurrency(summary.expense), icon: TrendingDown, className: 'expense' },
+          { label: 'Net Savings', value: formatCurrency(summary.net), icon: Wallet, className: summary.net >= 0 ? 'net' : 'expense' },
+          { label: 'Savings Rate', value: `${savingsRate.toFixed(1)}%`, icon: PiggyBank, className: savingsRate >= 0 ? 'net' : 'expense' },
+        ].map((card) => {
+          const Icon = card.icon;
+          return (
+            <article key={card.label} className={`stats-card ${card.className}`}>
+              <div className={`stats-icon ${card.className}`}>
+                <Icon size={18} />
+              </div>
+              <p className="stats-label">{card.label}</p>
+              <strong className={`stats-value ${card.className}`}>{card.value}</strong>
+              <div className="stats-footer">
+                <span>{card.label === 'Savings Rate' ? 'Mini donut available below' : 'Updated from imported data'}</span>
+                <span className="sparkline" />
+              </div>
+            </article>
+          );
+        })}
+      </section>
+
+      <section className="chart-panel">
+        <div className="panel-header">
+          <div>
+            <h2>Cash Flow</h2>
+            <p>Compare income and expenses by month or year.</p>
+          </div>
+          <div className="segmented-control">
+            <button type="button" className={view === 'monthly' ? 'active' : ''} onClick={() => setView('monthly')}>
+              Monthly
+            </button>
+            <button type="button" className={view === 'yearly' ? 'active' : ''} onClick={() => setView('yearly')}>
+              Yearly
+            </button>
+          </div>
+        </div>
+
+        <div className="chart-wrap large">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={barData}>
+              <CartesianGrid vertical={false} stroke="var(--border-subtle)" />
+              <XAxis dataKey="name" stroke="var(--text-secondary)" tickLine={false} axisLine={false} />
+              <YAxis
+                stroke="var(--text-secondary)"
+                tickLine={false}
+                axisLine={false}
+                tickFormatter={(value) => formatCompactCurrency(value)}
+              />
+              <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(108,142,247,0.08)' }} />
+              <Legend />
+              <Bar dataKey="Income" fill="var(--income-green)" radius={[10, 10, 0, 0]} />
+              <Bar dataKey="Expenses" fill="var(--expense-red)" radius={[10, 10, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+
+      <section className="reports-grid">
+        <article className="chart-panel">
+          <div className="panel-header">
+            <div>
+              <h2>Category Breakdown</h2>
+              <p>Total spent: {formatCurrency(summary.expense)}</p>
+            </div>
+          </div>
+          <div className="chart-wrap">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie data={donutData} innerRadius={70} outerRadius={98} paddingAngle={4} dataKey="value">
+                  {donutData.map((_, index) => (
+                    <Cell key={index} fill={categoryColors[index % categoryColors.length]} />
+                  ))}
+                </Pie>
+                <Tooltip content={<ChartTooltip />} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="chart-legend-list">
+            {topCategories.slice(0, 6).map((item, index) => (
+              <div key={item.name} className="chart-legend-row">
+                <span className="legend-label">
+                  <span className="legend-color" style={{ background: categoryColors[index % categoryColors.length] }} />
+                  {item.meta.emoji} {item.meta.label}
+                </span>
+                <strong>{formatCurrency(item.value)}</strong>
+                <span>{item.percent.toFixed(1)}%</span>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="chart-panel">
+          <div className="panel-header">
+            <div>
+              <h2>Monthly Trend</h2>
+              <p>Savings trend over time.</p>
+            </div>
+          </div>
+          <div className="chart-wrap">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={trendData}>
+                <defs>
+                  <linearGradient id="savingsGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="var(--neutral-blue)" stopOpacity="0.5" />
+                    <stop offset="100%" stopColor="var(--neutral-blue)" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid vertical={false} stroke="var(--border-subtle)" />
+                <XAxis dataKey="name" stroke="var(--text-secondary)" tickLine={false} axisLine={false} />
+                <YAxis stroke="var(--text-secondary)" tickLine={false} axisLine={false} />
+                <Tooltip content={<ChartTooltip />} />
+                <Area type="monotone" dataKey="Savings" stroke="var(--neutral-blue)" fill="url(#savingsGradient)" strokeWidth={3} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </article>
+      </section>
+
+      <section className="chart-panel">
+        <div className="panel-header">
+          <div>
+            <h2>Top Categories</h2>
+            <p>Ranked by contribution to total spending.</p>
+          </div>
+        </div>
+        <div className="top-category-table">
+          {topCategories.map((item, index) => (
+            <div key={item.name} className="top-category-row">
+              <span>#{index + 1}</span>
+              <span>{item.meta.emoji} {item.meta.label}</span>
+              <strong>{formatCurrency(item.value)}</strong>
+              <span>{item.percent.toFixed(1)}%</span>
+              <div className="top-category-bar">
+                <div style={{ width: `${item.percent}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
 };
 
 export default Reports;

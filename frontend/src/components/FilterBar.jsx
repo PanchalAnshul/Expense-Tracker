@@ -1,134 +1,105 @@
 import React from 'react';
-import { Search, Filter, Calendar } from 'lucide-react';
-import { useHeaderSearch } from '../context/SearchContext';
+import { CalendarRange, FolderOpen, Search, SlidersHorizontal, Tag, X } from 'lucide-react';
 
-const FilterBar = ({ filters, setFilters, folders, lockedFolderId }) => {
-    const { searchQuery, setSearchQuery } = useHeaderSearch();
+const FilterBar = ({ filters, setFilters, folders = [], lockedFolderId = '' }) => {
+  const update = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
+  const clearAll = () =>
+    setFilters({
+      category: '',
+      start_date: '',
+      end_date: '',
+      folder_id: lockedFolderId ? String(lockedFolderId) : '',
+    });
 
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        if (name === 'start_date') {
-            setFilters((prev) => {
-                const next = { ...prev, start_date: value };
-                if (value && prev.end_date && prev.end_date < value) {
-                    next.end_date = value;
-                }
-                return next;
-            });
-            return;
-        }
-        if (name === 'end_date') {
-            setFilters((prev) => {
-                if (prev.start_date && value && value < prev.start_date) {
-                    return { ...prev, end_date: prev.start_date };
-                }
-                return { ...prev, end_date: value };
-            });
-            return;
-        }
-        setFilters((prev) => ({ ...prev, [name]: value }));
-    };
+  const activeFilters = [
+    filters.category ? { key: 'category', label: filters.category } : null,
+    filters.start_date ? { key: 'start_date', label: `From ${filters.start_date}` } : null,
+    filters.end_date ? { key: 'end_date', label: `To ${filters.end_date}` } : null,
+    !lockedFolderId && filters.folder_id ? { key: 'folder_id', label: 'Folder selected' } : null,
+  ].filter(Boolean);
 
-    const handleClear = () => {
-        setSearchQuery('');
-        setFilters((prev) => {
-            const next = {
-                ...prev,
-                category: '',
-                start_date: '',
-                end_date: '',
-            };
-            if (lockedFolderId == null && Object.prototype.hasOwnProperty.call(prev, 'folder_id')) {
-                next.folder_id = '';
-            }
-            return next;
-        });
-    };
+  return (
+    <section className="filter-strip">
+      <div className="filter-strip-main">
+        <label className="filter-pill filter-pill-search">
+          <Search size={15} />
+          <input
+            value={filters.category || ''}
+            onChange={(event) => update('category', event.target.value)}
+            placeholder="Search notes or categories"
+            aria-label="Search notes or categories"
+          />
+        </label>
 
-    const activeFilterCount =
-        Object.entries(filters).filter(([k, v]) => k !== 'folder_id' && v !== '').length +
-        (searchQuery ? 1 : 0);
+        <label className="filter-pill">
+          <Tag size={15} />
+          <input
+            value={filters.category || ''}
+            onChange={(event) => update('category', event.target.value)}
+            placeholder="Category"
+            aria-label="Category filter"
+          />
+        </label>
 
-    return (
-        <div className="filter-bar">
-            <div className="filter-bar-top">
-                <div className="filter-bar-title">
-                    <Filter size={16} color="var(--text-secondary)" />
-                    <span>Filters</span>
-                    {activeFilterCount > 0 && (
-                        <span className="badge badge-neutral filter-count">{activeFilterCount}</span>
-                    )}
-                </div>
-                {activeFilterCount > 0 && (
-                    <button type="button" className="btn-text-clear" onClick={handleClear}>
-                        Clear all
-                    </button>
-                )}
-            </div>
+        <label className="filter-pill">
+          <CalendarRange size={15} />
+          <input
+            type="date"
+            value={filters.start_date || ''}
+            onChange={(event) => update('start_date', event.target.value)}
+            aria-label="Start date"
+          />
+        </label>
 
-            <div className="filter-bar-row">
-                <div className="filter-field filter-search">
-                    <Search size={14} className="filter-field-icon" aria-hidden />
-                    <input
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Matches category & description…"
-                        className="input-field filter-input"
-                    />
-                </div>
+        <label className="filter-pill">
+          <CalendarRange size={15} />
+          <input
+            type="date"
+            value={filters.end_date || ''}
+            onChange={(event) => update('end_date', event.target.value)}
+            aria-label="End date"
+          />
+        </label>
 
-                <div className="filter-field filter-narrow">
-                    <input
-                        type="text"
-                        name="category"
-                        value={filters.category}
-                        onChange={handleChange}
-                        placeholder="Category"
-                        className="input-field filter-input"
-                    />
-                </div>
+        {!lockedFolderId ? (
+          <label className="filter-pill">
+            <FolderOpen size={15} />
+            <select
+              value={filters.folder_id || ''}
+              onChange={(event) => update('folder_id', event.target.value)}
+              aria-label="Folder filter"
+            >
+              <option value="">All folders</option>
+              {folders.map((folder) => (
+                <option key={folder.id} value={folder.id}>
+                  {folder.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
 
-                <div className="filter-dates">
-                    <Calendar size={14} color="var(--text-tertiary)" aria-hidden />
-                    <input
-                        type="date"
-                        name="start_date"
-                        value={filters.start_date}
-                        onChange={handleChange}
-                        className="input-field filter-input filter-date"
-                    />
-                    <span className="filter-to">to</span>
-                    <input
-                        type="date"
-                        name="end_date"
-                        value={filters.end_date}
-                        onChange={handleChange}
-                        min={filters.start_date || undefined}
-                        className="input-field filter-input filter-date"
-                    />
-                </div>
-
-                {folders && folders.length > 0 && lockedFolderId == null && (
-                    <div className="filter-field filter-folder">
-                        <select
-                            name="folder_id"
-                            value={filters.folder_id}
-                            onChange={handleChange}
-                            className="input-field filter-input"
-                        >
-                            <option value="">All folders</option>
-                            {folders.map((f) => (
-                                <option key={f.id} value={f.id}>
-                                    {f.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                )}
-            </div>
+        <div className="filter-counter">
+          <SlidersHorizontal size={15} />
+          <span>{activeFilters.length}</span>
         </div>
-    );
+      </div>
+
+      {activeFilters.length ? (
+        <div className="filter-active-row">
+          {activeFilters.map((item) => (
+            <button key={item.key} type="button" className="active-filter-chip" onClick={() => update(item.key, '')}>
+              <span>{item.label}</span>
+              <X size={12} />
+            </button>
+          ))}
+          <button type="button" className="filter-clear-all" onClick={clearAll}>
+            Clear all
+          </button>
+        </div>
+      ) : null}
+    </section>
+  );
 };
 
 export default FilterBar;

@@ -1,263 +1,259 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { CalendarDays, FolderOpen, Tag, X } from 'lucide-react';
+import { expenseService } from '../services/expenseService';
+import { folderService } from '../services/folderService';
+import {
+  EXPENSE_CATEGORIES,
+  INCOME_CATEGORIES,
+  formatCurrency,
+  getCategoryMeta,
+} from '../utils/finance';
+import { useToast } from '../context/ToastContext';
+
+const todayString = () => new Date().toISOString().split('T')[0];
+const yesterdayString = () => {
+  const date = new Date();
+  date.setDate(date.getDate() - 1);
+  return date.toISOString().split('T')[0];
+};
 
 const RecordDialog = ({ isOpen, onClose, onSuccess, initialData = null }) => {
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [error, setError] = useState(null);
-    const [folders, setFolders] = useState([]);
+  const toast = useToast();
+  const isEditing = Boolean(initialData?.id);
+  const [folders, setFolders] = useState([]);
+  const [type, setType] = useState('expense');
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState(todayString());
+  const [category, setCategory] = useState('');
+  const [description, setDescription] = useState('');
+  const [folderId, setFolderId] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
 
-    const [type, setType] = useState('expense');
-    const [amount, setAmount] = useState('');
-    const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-    const [category, setCategory] = useState('');
-    const [description, setDescription] = useState('');
-    const [folderId, setFolderId] = useState('');
+  useEffect(() => {
+    folderService.getAll().then(setFolders).catch(() => {});
+  }, []);
 
-    const isEditing = !!(initialData && initialData.id);
+  useEffect(() => {
+    if (!isOpen) return;
+    setType(initialData?.type || 'expense');
+    setAmount(initialData?.amount ? String(initialData.amount) : '');
+    setDate(initialData?.date ? initialData.date.split('T')[0] : todayString());
+    setCategory(initialData?.category || '');
+    setDescription(initialData?.description || '');
+    setFolderId(initialData?.folder_id ? String(initialData.folder_id) : '');
+    setIsSuccess(false);
+  }, [initialData, isOpen]);
 
-    useEffect(() => {
-        fetch('http://localhost:8000/api/folders/')
-            .then((res) => res.json())
-            .then((data) => setFolders(data))
-            .catch(() => console.error('Could not load folders'));
-    }, []);
-
-    useEffect(() => {
-        if (initialData && isOpen) {
-            setType(initialData.type || 'expense');
-            setAmount(initialData.amount !== undefined && initialData.amount !== null ? String(initialData.amount) : '');
-            setDate(
-                initialData.date
-                    ? initialData.date.split('T')[0]
-                    : new Date().toISOString().split('T')[0]
-            );
-            setCategory(initialData.category || '');
-            setDescription(initialData.description || '');
-            const fid = initialData.folder_id;
-            setFolderId(fid !== undefined && fid !== null ? String(fid) : '');
-        } else if (isOpen) {
-            setType('expense');
-            setAmount('');
-            setDate(new Date().toISOString().split('T')[0]);
-            setCategory('');
-            setDescription('');
-            setFolderId('');
-        }
-    }, [initialData, isOpen]);
-
-    if (!isOpen) return null;
-
-    const buildPayload = () => {
-        const folder_id = folderId ? parseInt(folderId, 10) : null;
-        return {
-            type,
-            amount: parseFloat(amount),
-            date,
-            category,
-            description: description || '',
-            folder_id: Number.isNaN(folder_id) ? null : folder_id,
-        };
+  useEffect(() => {
+    if (!isOpen) return;
+    const listener = (event) => {
+      if (event.key === 'Escape') onClose();
+      if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+        event.preventDefault();
+        document.getElementById('transaction-submit')?.click();
+      }
     };
+    document.addEventListener('keydown', listener);
+    return () => document.removeEventListener('keydown', listener);
+  }, [isOpen, onClose]);
 
-    const save = async (continueAfterSave) => {
-        if (!amount || !date || !category) {
-            setError('Please fill out amount, date, and category.');
-            return;
+  const categories = useMemo(
+    () => (type === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES),
+    [type]
+  );
+
+  if (!isOpen) return null;
+
+  const accentClass = type === 'expense' ? 'expense' : 'income';
+
+  const handleSave = async (event, keepOpen = false) => {
+    if (event) event.preventDefault();
+
+    const parsedAmount = Number(amount);
+    if (!parsedAmount || parsedAmount <= 0 || !category.trim()) {
+      toast.error('Please enter an amount and select a category.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const payload = {
+        type,
+        amount: parsedAmount,
+        date,
+        category: category.trim(),
+        description: description.trim(),
+        folder_id: folderId ? Number(folderId) : null,
+      };
+
+      if (isEditing) {
+        await expenseService.update(initialData.id, payload);
+      } else {
+        await expenseService.create(payload);
+      }
+
+      setIsSuccess(true);
+      toast.success(`${isEditing ? 'Transaction updated' : `${type === 'expense' ? 'Expense' : 'Income'} added`}`);
+      onSuccess?.();
+      
+      setTimeout(() => {
+        setIsSuccess(false);
+        if (keepOpen && !isEditing) {
+          setAmount('');
+          setDescription('');
+        } else {
+          onClose();
         }
+      }, 420);
+    } catch {
+      toast.error('Something went wrong while saving this transaction.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
-        const parsed = parseFloat(amount);
-        if (Number.isNaN(parsed)) {
-            setError('Amount must be a valid number.');
-            return;
-        }
+  return (
+    <div className="modal-backdrop" onClick={(event) => event.target === event.currentTarget && onClose()}>
+      <div className="transaction-modal">
+        <button type="button" className="modal-close" onClick={onClose} aria-label="Close modal">
+          <X size={18} />
+        </button>
 
-        setIsSubmitting(true);
-        setError(null);
-
-        const payload = { ...buildPayload(), amount: parsed };
-
-        const url = isEditing
-            ? `http://localhost:8000/api/expenses/${initialData.id}`
-            : 'http://localhost:8000/api/expenses/';
-
-        const method = isEditing ? 'PUT' : 'POST';
-
-        try {
-            const response = await fetch(url, {
-                method,
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(payload),
-            });
-
-            if (response.ok) {
-                await Promise.resolve(onSuccess());
-                if (continueAfterSave && !isEditing) {
-                    setAmount('');
-                    setCategory('');
-                    setDescription('');
-                    setType('expense');
-                } else {
-                    onClose();
-                }
-            } else {
-                const data = await response.json().catch(() => ({}));
-                let errMsg = `Failed to ${isEditing ? 'update' : 'add'} record`;
-                if (data.detail) {
-                    if (Array.isArray(data.detail)) {
-                        errMsg = data.detail.map((d) => d.msg).join(', ');
-                    } else if (typeof data.detail === 'string') {
-                        errMsg = data.detail;
-                    } else {
-                        errMsg = JSON.stringify(data.detail);
-                    }
-                }
-                setError(errMsg);
-            }
-        } catch {
-            setError('Network error: could not reach server.');
-        } finally {
-            setIsSubmitting(false);
-        }
-    };
-
-    return (
-        <div
-            className="record-dialog-overlay"
-            role="presentation"
-            onClick={(e) => {
-                if (e.target === e.currentTarget) onClose();
-            }}
-        >
-            <div className="glass-panel record-dialog" role="dialog" aria-labelledby="record-dialog-title">
-                <div className="record-dialog-head">
-                    <h2 id="record-dialog-title" className="record-dialog-title">
-                        {isEditing ? 'Edit transaction' : 'New transaction'}
-                    </h2>
-                    <button type="button" className="btn-icon" onClick={onClose} aria-label="Close">
-                        <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
-                </div>
-
-                {error && (
-                    <div className="record-dialog-error">{error}</div>
-                )}
-
-                <form
-                    className="record-dialog-form"
-                    onSubmit={(e) => {
-                        e.preventDefault();
-                        save(false);
-                    }}
-                >
-                    <div className="record-type-toggle">
-                        <label className={type === 'expense' ? 'active expense' : ''}>
-                            <input
-                                type="radio"
-                                value="expense"
-                                checked={type === 'expense'}
-                                onChange={(e) => setType(e.target.value)}
-                            />
-                            <span>Expense</span>
-                        </label>
-                        <label className={type === 'income' ? 'active income' : ''}>
-                            <input
-                                type="radio"
-                                value="income"
-                                checked={type === 'income'}
-                                onChange={(e) => setType(e.target.value)}
-                            />
-                            <span>Income</span>
-                        </label>
-                    </div>
-
-                    <div className="record-dialog-row">
-                        <div className="record-field">
-                            <label className="input-label">Amount</label>
-                            <input
-                                className="input-field"
-                                type="number"
-                                step="0.01"
-                                value={amount}
-                                onChange={(e) => setAmount(e.target.value)}
-                                placeholder="0.00"
-                                autoFocus
-                            />
-                        </div>
-                        <div className="record-field">
-                            <label className="input-label">Date</label>
-                            <input
-                                className="input-field"
-                                type="date"
-                                value={date}
-                                onChange={(e) => setDate(e.target.value)}
-                            />
-                        </div>
-                    </div>
-
-                    <div className="record-field">
-                        <label className="input-label">Category</label>
-                        <input
-                            className="input-field"
-                            type="text"
-                            value={category}
-                            onChange={(e) => setCategory(e.target.value)}
-                            placeholder="e.g. Salary, groceries, rent"
-                        />
-                    </div>
-
-                    <div className="record-field">
-                        <label className="input-label">Folder (optional)</label>
-                        <select
-                            className="input-field"
-                            value={folderId}
-                            onChange={(e) => setFolderId(e.target.value)}
-                        >
-                            <option value="">No folder (global)</option>
-                            {folders.map((f) => (
-                                <option key={f.id} value={f.id}>
-                                    {f.name}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div className="record-field">
-                        <label className="input-label">Description (optional)</label>
-                        <input
-                            className="input-field"
-                            type="text"
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            placeholder="Add a note…"
-                        />
-                    </div>
-
-                    <div className="record-dialog-actions">
-                        <button type="button" className="btn btn-secondary" onClick={onClose} disabled={isSubmitting}>
-                            Cancel
-                        </button>
-                        {!isEditing && (
-                            <button
-                                type="button"
-                                className="btn btn-secondary"
-                                onClick={() => save(true)}
-                                disabled={isSubmitting}
-                                title="Save and keep this date to add more entries for the same day"
-                            >
-                                {isSubmitting ? 'Saving…' : 'Save & continue'}
-                            </button>
-                        )}
-                        <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
-                            {isSubmitting ? 'Saving…' : isEditing ? 'Update' : 'Save'}
-                        </button>
-                    </div>
-                </form>
-            </div>
+        <div className="transaction-modal-header">
+          <span className="modal-eyebrow">New transaction</span>
+          <h2>{type === 'expense' ? 'Add Expense' : 'Add Income'}</h2>
+          <div className="modal-type-toggle">
+            <div className={`modal-type-indicator ${accentClass}`} />
+            <button type="button" className={type === 'expense' ? 'active expense' : ''} onClick={() => setType('expense')}>
+              Expense
+            </button>
+            <button type="button" className={type === 'income' ? 'active income' : ''} onClick={() => setType('income')}>
+              Income
+            </button>
+          </div>
         </div>
-    );
+
+        <form className="transaction-modal-form" onSubmit={(e) => handleSave(e, false)}>
+          <section className={`modal-amount-card ${accentClass}`}>
+            <span className="modal-field-label">Amount</span>
+            <label className="modal-amount-input">
+              <span>₹</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={amount}
+                onChange={(event) => setAmount(event.target.value)}
+                placeholder="0.00"
+                autoFocus
+              />
+            </label>
+            <small>{amount ? formatCurrency(amount) : '₹0.00'}</small>
+          </section>
+
+          <label className="modal-field">
+            <span className="modal-field-label">
+              <CalendarDays size={15} />
+              Date
+            </span>
+            <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+            <div className="modal-quick-chips">
+              {[
+                { label: 'Today', value: todayString() },
+                { label: 'Yesterday', value: yesterdayString() },
+                { label: 'This week', value: todayString() },
+              ].map((chip) => (
+                <button key={chip.label} type="button" onClick={() => setDate(chip.value)}>
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+          </label>
+
+          <div className="modal-field">
+            <span className="modal-field-label">
+              <Tag size={15} />
+              Category
+            </span>
+            <input
+              value={category}
+              onChange={(event) => setCategory(event.target.value)}
+              placeholder="Search or type a category"
+            />
+            <div className="modal-category-grid">
+              {categories.map((item) => {
+                const meta = getCategoryMeta(item.label);
+                const selected = category === item.label;
+                return (
+                  <button
+                    key={item.label}
+                    type="button"
+                    className={`modal-category-chip ${selected ? 'selected' : ''}`}
+                    style={{ '--category-color': meta.colorVar }}
+                    onClick={() => setCategory(item.label)}
+                  >
+                    <span>{item.emoji}</span>
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <label className="modal-field">
+            <span className="modal-field-label">
+              <FolderOpen size={15} />
+              Folder
+            </span>
+            <select value={folderId} onChange={(event) => setFolderId(event.target.value)}>
+              <option value="">Select a folder</option>
+              {folders.map((folder) => (
+                <option key={folder.id} value={folder.id}>
+                  {folder.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="modal-field">
+            <span className="modal-field-label">Note</span>
+            <textarea
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="Add a short note"
+              maxLength={140}
+              rows={3}
+            />
+            <small>{description.length}/140</small>
+          </label>
+
+          <div style={{ display: 'grid', gridTemplateColumns: isEditing ? '1fr' : '1fr 1fr', gap: '12px' }}>
+            <button
+              id="transaction-submit"
+              type="submit"
+              className={`btn btn-gradient modal-submit ${isSuccess ? 'is-success' : ''}`}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? 'Saving...' : isSuccess ? '✓ Saved' : `${isEditing ? 'Update' : 'Add'} ${type === 'expense' ? 'Expense' : 'Income'}`}
+              <span>⌘ Enter</span>
+            </button>
+            {!isEditing && (
+              <button
+                type="button"
+                className="btn btn-outline modal-submit"
+                disabled={isSubmitting}
+                onClick={(e) => handleSave(e, true)}
+                style={{ width: '100%' }}
+              >
+                {isSubmitting ? 'Saving...' : 'Save & Continue'}
+              </button>
+            )}
+          </div>
+        </form>
+      </div>
+    </div>
+  );
 };
 
 export default RecordDialog;
