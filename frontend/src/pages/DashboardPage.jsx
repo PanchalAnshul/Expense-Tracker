@@ -106,22 +106,24 @@ const DashboardPage = () => {
 
   return (
     <div className="dashboard-page">
-      <section className="page-hero">
-        <div>
-          <p className="page-eyebrow">Dashboard</p>
-          <h1>Track every rupee without the clutter.</h1>
-          <p className="page-hero-copy">
-            Quick add, recent history, and the financial signals that matter most right now.
-          </p>
+      {/* <section className="page-hero dashboard-header-row"> */}
+        <div className="dashboard-header-copy">
+          <h1>Dashboard</h1>
+           <UploadExcel onUploadSuccess={fetchPageData} />
+          {/* <button type="button" className="btn btn-outline dashboard-secondary-action" onClick={() => navigate('/reports')}>
+            <CircleDollarSign size={16} />
+            View reports
+          </button> */}
+          {/* <p className="page-hero-copy">Your complete financial overview.</p> */}
         </div>
-        <div className="page-hero-actions">
+        {/* <div className="page-hero-actions">
           <UploadExcel onUploadSuccess={fetchPageData} />
           <button type="button" className="btn btn-outline dashboard-secondary-action" onClick={() => navigate('/reports')}>
             <CircleDollarSign size={16} />
             View reports
           </button>
-        </div>
-      </section>
+        </div> */}
+      {/* </section> */}
 
       <QuickAddRecord onSuccess={fetchPageData} />
 

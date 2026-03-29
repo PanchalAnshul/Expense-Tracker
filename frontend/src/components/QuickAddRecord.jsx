@@ -6,7 +6,6 @@ import {
   EXPENSE_CATEGORIES,
   INCOME_CATEGORIES,
   formatCurrency,
-  getRelativeDateLabel,
 } from '../utils/finance';
 import { useToast } from '../context/ToastContext';
 
@@ -78,7 +77,7 @@ const QuickAddRecord = ({ onSuccess, defaultFolderId = null, sticky = false }) =
 
   return (
     <section className={`command-bar ${sticky ? 'is-sticky' : ''}`}>
-      <div className="command-bar-row">
+      <div className="quick-add-row-1">
         <div className="type-toggle" role="tablist" aria-label="Transaction type">
           <div className={`type-toggle-indicator ${type === 'income' ? 'is-income' : ''}`} />
           <button
@@ -99,7 +98,7 @@ const QuickAddRecord = ({ onSuccess, defaultFolderId = null, sticky = false }) =
           </button>
         </div>
 
-        <label className="command-amount">
+        <label className="command-amount amount-input">
           <span className="command-amount-prefix">₹</span>
           <input
             type="number"
@@ -107,7 +106,6 @@ const QuickAddRecord = ({ onSuccess, defaultFolderId = null, sticky = false }) =
             step="0.01"
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
-            onFocus={() => setShowExpanded(true)}
             placeholder="0.00"
             className="command-amount-input"
             aria-label="Amount"
@@ -115,9 +113,19 @@ const QuickAddRecord = ({ onSuccess, defaultFolderId = null, sticky = false }) =
           />
         </label>
 
+        <div className="command-submit-group">
+          <button type="button" className="btn btn-gradient command-submit add-btn" onClick={saveRecord} disabled={saving}>
+            <span>{saving ? 'Saving...' : 'Add record'}</span>
+            <span className="command-shortcut">
+              <Command size={12} /> Enter
+            </span>
+          </button>
+        </div>
+      </div>
+
+      <div className="quick-add-row-2">
         <label className="command-chip command-chip-input">
           <input type="date" value={date} onChange={(event) => setDate(event.target.value)} aria-label="Date" />
-          <span>{getRelativeDateLabel(date)}</span>
         </label>
 
         <div className="command-category">
@@ -167,52 +175,39 @@ const QuickAddRecord = ({ onSuccess, defaultFolderId = null, sticky = false }) =
           className="command-note"
           value={description}
           onChange={(event) => setDescription(event.target.value)}
-          onFocus={() => setShowExpanded(true)}
           placeholder="Add a note"
           aria-label="Note"
           maxLength={140}
         />
 
-        <div className="command-submit-group">
-          <button type="button" className="btn btn-gradient command-submit" onClick={saveRecord} disabled={saving}>
-            <span>{saving ? 'Saving...' : 'Add record'}</span>
-            <span className="command-shortcut">
-              <Command size={12} /> Enter
-            </span>
-          </button>
+        <label className="command-select">
+          <FolderOpen size={15} />
+          <select value={folderId} onChange={(event) => setFolderId(event.target.value)} aria-label="Folder">
+            <option value="">Select folder</option>
+            {folders.map((folder) => (
+              <option key={folder.id} value={folder.id}>
+                {folder.name}
+              </option>
+            ))}
+          </select>
+        </label>
 
-          <button
-            type="button"
-            className="command-expand-btn"
-            onClick={() => setShowExpanded((current) => !current)}
-            aria-expanded={showExpanded}
-            aria-label="Show more fields"
-          >
-            <Plus size={16} />
-          </button>
-        </div>
+        <button type="button" className="command-recurring recurring-btn">
+          <Repeat size={15} />
+          Recurring
+        </button>
+
+        <button
+          type="button"
+          className="command-expand-btn expand-btn"
+          onClick={() => setShowExpanded((current) => !current)}
+          aria-expanded={showExpanded}
+          aria-label="Show more fields"
+        >
+          <Plus size={16} />
+        </button>
       </div>
 
-      {showExpanded ? (
-        <div className="command-bar-expanded">
-          <label className="command-select">
-            <FolderOpen size={15} />
-            <select value={folderId} onChange={(event) => setFolderId(event.target.value)} aria-label="Folder">
-              <option value="">Select folder</option>
-              {folders.map((folder) => (
-                <option key={folder.id} value={folder.id}>
-                  {folder.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <button type="button" className="command-recurring">
-            <Repeat size={15} />
-            Recurring
-          </button>
-        </div>
-      ) : null}
     </section>
   );
 };
