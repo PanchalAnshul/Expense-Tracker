@@ -132,22 +132,24 @@ const UploadExcel = ({ onUploadSuccess }) => {
   return (
     <>
       <div className="dashboard-import">
-        <button
-          type="button"
-          className="btn btn-outline dashboard-import-button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={isPreviewing || isImporting}
-        >
-          {isPreviewing || isImporting ? <LoaderCircle size={16} className="spin-icon" /> : <Upload size={16} />}
-          Import Excel
-        </button>
-        <button
-          type="button"
-          className="dashboard-import-link"
-          onClick={() => setShowSchema(true)}
-        >
-          Supported formats
-        </button>
+        <div className="dashboard-import-stack">
+          <button
+            type="button"
+            className="btn btn-outline dashboard-import-button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isPreviewing || isImporting}
+          >
+            {isPreviewing || isImporting ? <LoaderCircle size={16} className="spin-icon" /> : <Upload size={16} />}
+            Import Excel
+          </button>
+          <button
+            type="button"
+            className="dashboard-import-link"
+            onClick={() => setShowSchema(true)}
+          >
+            Supported formats
+          </button>
+        </div>
         <input
           ref={fileInputRef}
           type="file"

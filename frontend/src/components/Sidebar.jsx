@@ -48,7 +48,7 @@ const Sidebar = ({ collapsed }) => (
       <div className="sidebar-user">
         <UserCircle2 size={20} />
         <div className="sidebar-user-copy">
-          <strong>Anshu</strong>
+          <strong>Anshul</strong>
           <span>All accounts</span>
         </div>
       </div>

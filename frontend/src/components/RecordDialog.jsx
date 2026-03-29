@@ -228,7 +228,7 @@ const RecordDialog = ({ isOpen, onClose, onSuccess, initialData = null }) => {
             <small>{description.length}/140</small>
           </label>
 
-          <div style={{ display: 'grid', gridTemplateColumns: isEditing ? '1fr' : '1fr 1fr', gap: '12px' }}>
+          <div className={`modal-actions-grid ${isEditing ? 'is-editing' : ''}`}>
             <button
               id="transaction-submit"
               type="submit"

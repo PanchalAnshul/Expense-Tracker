@@ -173,22 +173,24 @@ const QuickAddRecord = ({ onSuccess, defaultFolderId = null, sticky = false }) =
           maxLength={140}
         />
 
-        <button type="button" className="btn btn-gradient command-submit" onClick={saveRecord} disabled={saving}>
-          <span>{saving ? 'Saving...' : 'Add'}</span>
-          <span className="command-shortcut">
-            <Command size={12} /> Enter
-          </span>
-        </button>
+        <div className="command-submit-group">
+          <button type="button" className="btn btn-gradient command-submit" onClick={saveRecord} disabled={saving}>
+            <span>{saving ? 'Saving...' : 'Add record'}</span>
+            <span className="command-shortcut">
+              <Command size={12} /> Enter
+            </span>
+          </button>
 
-        <button
-          type="button"
-          className="command-expand-btn"
-          onClick={() => setShowExpanded((current) => !current)}
-          aria-expanded={showExpanded}
-          aria-label="Show more fields"
-        >
-          <Plus size={16} />
-        </button>
+          <button
+            type="button"
+            className="command-expand-btn"
+            onClick={() => setShowExpanded((current) => !current)}
+            aria-expanded={showExpanded}
+            aria-label="Show more fields"
+          >
+            <Plus size={16} />
+          </button>
+        </div>
       </div>
 
       {showExpanded ? (

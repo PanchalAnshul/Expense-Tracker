@@ -116,7 +116,7 @@ const DashboardPage = () => {
         </div>
         <div className="page-hero-actions">
           <UploadExcel onUploadSuccess={fetchPageData} />
-          <button type="button" className="btn btn-outline" onClick={() => navigate('/reports')}>
+          <button type="button" className="btn btn-outline dashboard-secondary-action" onClick={() => navigate('/reports')}>
             <CircleDollarSign size={16} />
             View reports
           </button>
