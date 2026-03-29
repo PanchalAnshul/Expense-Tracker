@@ -263,6 +263,11 @@ strong,
   gap: 12px;
 }
 
+.header-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .header-toggle-btn,
 .header-icon-btn,
 .header-avatar,
@@ -1689,12 +1694,23 @@ strong,
     padding: 16px;
   }
 
+  .header-left {
+    justify-content: space-between;
+  }
+
   .header-mobile-brand {
     display: inline-flex;
   }
 
   .header-actions {
     justify-content: space-between;
+    gap: 10px;
+  }
+
+  .header-date-pill,
+  .header-icon-btn,
+  .header-avatar {
+    flex-shrink: 0;
   }
 
   .page-hero,
@@ -1734,8 +1750,13 @@ strong,
   .command-chip-button,
   .command-select,
   .filter-pill,
-  .summary-pill {
+  .summary-pill,
+  .dashboard-import-button {
     width: 100%;
+  }
+
+  .dashboard-import-link {
+    align-self: flex-start;
   }
 
   .transaction-modal {
@@ -1774,7 +1795,17 @@ strong,
   }
 
   .main-content {
-    padding-bottom: 110px;
+    padding-bottom: 126px;
+  }
+
+  .toast-container {
+    left: 12px;
+    right: 12px;
+    bottom: 86px;
+  }
+
+  .toast {
+    width: 100%;
   }
 }
 /* Import Flow */

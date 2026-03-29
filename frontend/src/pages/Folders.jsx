@@ -51,8 +51,8 @@ const Folders = () => {
       toast.success(`Folder "${newFolderName.trim()}" created`);
       setNewFolderName('');
       loadFolders();
-    } catch {
-      toast.error('We could not create that folder.');
+    } catch (error) {
+      toast.error(error.message || 'We could not create that folder.');
     }
   };
 

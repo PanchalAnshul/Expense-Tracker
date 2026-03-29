@@ -16,6 +16,7 @@ class FolderResponse(FolderBase):
     totalIncome: float = 0.0
     totalExpense: float = 0.0
     balance: float = 0.0
+    expenseCount: int = 0
     
     class Config:
         from_attributes = True

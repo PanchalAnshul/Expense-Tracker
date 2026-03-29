@@ -23,17 +23,30 @@ def get_folders(db: Session = Depends(get_db)):
             "created_at": f.created_at,
             "totalIncome": income,
             "totalExpense": expense,
-            "balance": income - expense
+            "balance": income - expense,
+            "expenseCount": len(f.expenses),
         })
     return results
 
-@router.post("/")
+@router.post("/", response_model=schemas.FolderResponse)
 def create_folder(folder: schemas.FolderCreate, db: Session = Depends(get_db)):
-    db_folder = models.Folder(name=folder.name)
+    folder_name = folder.name.strip()
+    if not folder_name:
+        raise HTTPException(status_code=400, detail="Folder name is required")
+
+    db_folder = models.Folder(name=folder_name)
     db.add(db_folder)
     db.commit()
     db.refresh(db_folder)
-    return db_folder
+    return {
+        "id": db_folder.id,
+        "name": db_folder.name,
+        "created_at": db_folder.created_at,
+        "totalIncome": 0.0,
+        "totalExpense": 0.0,
+        "balance": 0.0,
+        "expenseCount": 0,
+    }
 
 @router.put("/{folder_id}")
 def update_folder(folder_id: int, folder_update: schemas.FolderCreate, db: Session = Depends(get_db)):

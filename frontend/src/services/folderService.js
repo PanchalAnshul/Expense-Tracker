@@ -5,8 +5,9 @@ const BASE_URL = API_BASE_URL;
 export const folderService = {
     getAll: async () => {
         const res = await fetch(`${BASE_URL}/folders/`);
-        if (!res.ok) throw new Error("Failed to fetch folders");
-        return res.json();
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || "Failed to fetch folders");
+        return data;
     },
 
     create: async (name) => {
@@ -15,8 +16,9 @@ export const folderService = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name })
         });
-        if (!res.ok) throw new Error("Failed to create folder");
-        return res.json();
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || "Failed to create folder");
+        return data;
     },
 
     update: async (id, name) => {
@@ -25,13 +27,15 @@ export const folderService = {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ name })
         });
-        if (!res.ok) throw new Error("Failed to rename folder");
-        return res.json();
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || "Failed to rename folder");
+        return data;
     },
 
     delete: async (id) => {
         const res = await fetch(`${BASE_URL}/folders/${id}`, { method: 'DELETE' });
-        if (!res.ok) throw new Error("Failed to delete folder");
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.detail || "Failed to delete folder");
         return true;
     }
 };
